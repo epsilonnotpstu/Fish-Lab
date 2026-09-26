@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, MailCheck, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Send } from "lucide-react";
+import { toast } from "sonner";
 import {
   requestLoginCode,
   requestSignupCode,
@@ -32,6 +33,8 @@ export function GoogleButton({ label }: { label: string }) {
   );
 }
 
+const CODE_TTL_SECONDS = 10 * 60;
+
 export function MemberAuthForm({ mode, googleEnabled = false, notice }: { mode: "login" | "signup"; googleEnabled?: boolean; notice?: string }) {
   const [reqState, requestAction, requesting] = useActionState<MemberAuthState, FormData>(
     mode === "signup" ? requestSignupCode : requestLoginCode,
@@ -40,19 +43,46 @@ export function MemberAuthForm({ mode, googleEnabled = false, notice }: { mode: 
   const [verifyState, verifyAction, verifying] = useActionState<MemberAuthState, FormData>(verifyMemberCode, undefined);
   const [reset, setReset] = useState(0);
   const [cooldown, setCooldown] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(CODE_TTL_SECONDS);
+  const sentAt = useRef<string | null>(null);
 
   const otpStep = reqState?.step === "otp" && verifyState?.step !== "email" && reset === 0;
+
+  // Confirm each send (first code and every resend) and restart the countdown.
+  useEffect(() => {
+    if (!otpStep || !reqState?.email) return;
+    const stamp = `${reqState.email}:${reqState.sentAt ?? ""}`;
+    if (sentAt.current === stamp) return;
+    sentAt.current = stamp;
+    setSecondsLeft(CODE_TTL_SECONDS);
+    toast.success("OTP sent", { description: `Check the inbox of ${reqState.email}` });
+  }, [otpStep, reqState?.email, reqState?.sentAt]);
+
+  useEffect(() => {
+    if (!otpStep) return;
+    const id = setInterval(() => setSecondsLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [otpStep]);
   const error = otpStep ? verifyState?.error : (verifyState?.step === "email" ? verifyState.error : undefined) ?? reqState?.error;
 
   if (otpStep) {
     return (
       <div className="space-y-6">
-        <div className="flex gap-3 rounded-2xl bg-accent p-4 text-sm text-accent-foreground">
-          <MailCheck className="size-5 shrink-0" />
-          <p>
-            If <strong>{reqState.email}</strong> {mode === "login" ? "has a member account" : "can receive email"}, a 6-digit code is on its way.
-            Check your inbox (and spam folder).
-          </p>
+        <div className="flex gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-300">
+          <CheckCircle2 className="size-5 shrink-0" />
+          <div>
+            <p className="font-semibold">OTP sent to {reqState.email}</p>
+            <p className="mt-1 text-emerald-800/80 dark:text-emerald-300/80">
+              Enter the 6-digit code below. Check your spam folder if it does not arrive within a minute.
+            </p>
+            <p className="mt-2 font-medium">
+              {secondsLeft > 0 ? (
+                <>Code expires in {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</>
+              ) : (
+                <>This code has expired — use “Resend code” to get a new one.</>
+              )}
+            </p>
+          </div>
         </div>
         <form action={verifyAction} className="space-y-5">
           <OtpInput name="code" autoFocus />
@@ -126,6 +156,11 @@ export function MemberAuthForm({ mode, googleEnabled = false, notice }: { mode: 
         {requesting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
         {mode === "signup" ? "Create account" : "Email me a sign-in code"}
       </button>
+      <p className="rounded-2xl bg-muted/60 px-4 py-3 text-center text-xs text-muted-foreground">
+        Admins and editors do not use codes — they sign in at{" "}
+        <Link href="/admin/login" className="font-medium text-foreground hover:underline">/admin</Link>{" "}
+        with a password. No code is sent to a staff email address.
+      </p>
       <p className="text-center text-sm text-muted-foreground">
         {mode === "signup" ? (
           <>Already have an account? <Link href="/account/login" className="font-medium text-foreground hover:underline">Sign in</Link></>

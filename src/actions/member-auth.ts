@@ -12,7 +12,14 @@ import { getResource } from "@/lib/admin/resources";
 import { toPrismaData, validateFields, type FieldErrors } from "@/lib/admin/resource-server";
 
 export type MemberAuthState =
-  | { step?: "email" | "otp"; email?: string; error?: string; purpose?: "signup" | "login" }
+  | {
+      step?: "email" | "otp";
+      email?: string;
+      error?: string;
+      purpose?: "signup" | "login";
+      /** Set every time a code is sent, so the UI can confirm each send. */
+      sentAt?: string;
+    }
   | undefined;
 
 const emailSchema = z.email("Please enter a valid email address.").max(254);
@@ -32,7 +39,9 @@ export async function requestSignupCode(_prev: MemberAuthState, formData: FormDa
   const email = emailSchema.safeParse(String(formData.get("email") ?? "").trim().toLowerCase());
   if (!name.success) return { step: "email", error: name.error.issues[0].message };
   if (!email.success) return { step: "email", error: email.error.issues[0].message };
-  if (String(formData.get("website") ?? "")) return { step: "otp", email: email.data, purpose: "signup" };
+  if (String(formData.get("website") ?? "")) {
+    return { step: "otp", email: email.data, purpose: "signup", sentAt: new Date().toISOString() };
+  }
   if (!(await throttle(email.data))) return { step: "email", error: "Too many requests. Please try again later." };
 
   const existing = await db.user.findUnique({ where: { email: email.data } });
@@ -52,7 +61,7 @@ export async function requestSignupCode(_prev: MemberAuthState, formData: FormDa
     console.error("otp: send failed", err instanceof Error ? err.message : err);
     return { step: "email", error: "We could not send the email. Please try again later." };
   }
-  return { step: "otp", email: email.data, purpose: "signup" };
+  return { step: "otp", email: email.data, purpose: "signup", sentAt: new Date().toISOString() };
 }
 
 export async function requestLoginCode(_prev: MemberAuthState, formData: FormData): Promise<MemberAuthState> {
@@ -73,7 +82,7 @@ export async function requestLoginCode(_prev: MemberAuthState, formData: FormDat
     return { step: "email", error: "We could not send the email. Please try again later." };
   }
   // Same response whether or not the account exists.
-  return { step: "otp", email: email.data, purpose: "login" };
+  return { step: "otp", email: email.data, purpose: "login", sentAt: new Date().toISOString() };
 }
 
 export async function verifyMemberCode(prev: MemberAuthState, formData: FormData): Promise<MemberAuthState> {
