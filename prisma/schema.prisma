@@ -1,0 +1,435 @@
+// Every piece of public content lives in this database so the same codebase
+// can power any laboratory: change the rows, not the code.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Global settings (singleton, id = 1) ─────────────────────────────────────
+
+model SiteSettings {
+  id Int @id @default(1)
+
+  // Identity
+  labName      String  @default("Laboratory")
+  shortName    String  @default("LAB")
+  tagline      String  @default("")
+  description  String  @default("")
+  faculty      String  @default("")
+  department   String  @default("")
+  university   String  @default("")
+  universityUrl String @default("")
+  foundedYear  Int?
+
+  // Branding
+  logoUrl      String  @default("")
+  logoDarkUrl  String  @default("")
+  faviconUrl   String  @default("")
+  primaryColor String  @default("#0b3b5c")
+  accentColor  String  @default("#14b8a6")
+  headingFont  String  @default("Plus Jakarta Sans")
+  bodyFont     String  @default("Inter")
+
+  // Contact
+  email        String  @default("")
+  phone        String  @default("")
+  fax          String  @default("")
+  address      String  @default("")
+  officeHours  String  @default("")
+  mapEmbedUrl  String  @default("")
+  accessInfo   String  @default("") // rich text: how to reach the lab
+  socials      Json    @default("[]") // [{ platform, url }]
+
+  // Footer
+  footerAbout  String  @default("")
+  footerLinks  Json    @default("[]") // [{ label, url }]
+  copyright    String  @default("")
+
+  // SEO
+  seoTitle       String @default("")
+  seoDescription String @default("")
+  seoKeywords    String @default("")
+  ogImageUrl     String @default("")
+
+  // Announcement bar
+  announcementText    String  @default("")
+  announcementUrl     String  @default("")
+  announcementEnabled Boolean @default(false)
+
+  // Contact form
+  contactFormEnabled Boolean @default(true)
+  contactIntro       String  @default("")
+  inquiryTypes       Json    @default("[]") // ["Lab visit", "Collaboration", ...]
+
+  // Feature toggles (hide whole sections of the site)
+  showPublications Boolean @default(true)
+  showProjects     Boolean @default(true)
+  showGallery      Boolean @default(true)
+  showEvents       Boolean @default(true)
+  showJoinUs       Boolean @default(true)
+  showAlumni       Boolean @default(true)
+
+  updatedAt DateTime @updatedAt
+}
+
+model NavItem {
+  id        String    @id @default(cuid())
+  label     String
+  href      String
+  order     Int       @default(0)
+  visible   Boolean   @default(true)
+  newTab    Boolean   @default(false)
+  parentId  String?
+  parent    NavItem?  @relation("NavTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  NavItem[] @relation("NavTree")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Homepage blocks. `type` picks the renderer; content holds block-specific
+// fields (e.g. hero slides, stats, CTA buttons).
+model HomeSection {
+  id        String   @id @default(cuid())
+  type      String
+  title     String   @default("")
+  subtitle  String   @default("")
+  body      String   @default("")
+  content   Json     @default("{}")
+  order     Int      @default(0)
+  visible   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Research ────────────────────────────────────────────────────────────────
+
+model ResearchArea {
+  id           String        @id @default(cuid())
+  slug         String        @unique
+  title        String
+  subtitle     String        @default("")
+  summary      String        @default("")
+  body         String        @default("")
+  icon         String        @default("")
+  coverImage   String        @default("")
+  gallery      Json          @default("[]") // [url]
+  order        Int           @default(0)
+  published    Boolean       @default(true)
+  equipment    Equipment[]
+  members      Member[]
+  publications Publication[]
+  projects     Project[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Equipment {
+  id            String         @id @default(cuid())
+  name          String
+  description   String         @default("")
+  image         String         @default("")
+  order         Int            @default(0)
+  researchAreas ResearchArea[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// ─── People ──────────────────────────────────────────────────────────────────
+
+model MemberCategory {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  order     Int      @default(0)
+  members   Member[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Member {
+  id                String         @id @default(cuid())
+  slug              String         @unique
+  name              String
+  position          String         @default("")
+  photo             String         @default("")
+  email             String         @default("")
+  phone             String         @default("")
+  bio               String         @default("")
+  researchInterests String         @default("")
+  education         String         @default("")
+  links             Json           @default("[]") // [{ label, url }]
+  joinYear          Int?
+  graduationYear    Int?
+  currentPosition   String         @default("") // for alumni
+  isAlumni          Boolean        @default(false)
+  order             Int            @default(0)
+  published         Boolean        @default(true)
+  categoryId        String?
+  category          MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  researchAreas     ResearchArea[]
+  account           User?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+// ─── News & events ───────────────────────────────────────────────────────────
+
+model NewsCategory {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  color     String     @default("#14b8a6")
+  order     Int        @default(0)
+  posts     NewsPost[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model NewsPost {
+  id            String         @id @default(cuid())
+  slug          String         @unique
+  title         String
+  date          DateTime       @default(now())
+  excerpt       String         @default("")
+  body          String         @default("")
+  coverImage    String         @default("")
+  externalUrl   String         @default("")
+  venue         String         @default("")
+  presentations Json           @default("[]") // [{ title, presenters, date, format }]
+  pinned        Boolean        @default(false)
+  published     Boolean        @default(true)
+  categoryId    String?
+  category      NewsCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([date])
+}
+
+model Event {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  startDate       DateTime
+  endDate         DateTime?
+  location        String   @default("")
+  summary         String   @default("")
+  body            String   @default("")
+  coverImage      String   @default("")
+  registrationUrl String   @default("")
+  published       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([startDate])
+}
+
+// ─── Research output ─────────────────────────────────────────────────────────
+
+model Publication {
+  id            String         @id @default(cuid())
+  title         String
+  authors       String
+  venue         String         @default("")
+  year          Int
+  type          String         @default("Journal Article")
+  volume        String         @default("")
+  pages         String         @default("")
+  doi           String         @default("")
+  url           String         @default("")
+  pdfUrl        String         @default("")
+  abstract      String         @default("")
+  featured      Boolean        @default(false)
+  published     Boolean        @default(true)
+  researchAreas ResearchArea[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([year])
+}
+
+model Project {
+  id            String         @id @default(cuid())
+  slug          String         @unique
+  title         String
+  funder        String         @default("")
+  role          String         @default("")
+  startYear     Int?
+  endYear       Int?
+  amount        String         @default("")
+  status        String         @default("Ongoing")
+  summary       String         @default("")
+  body          String         @default("")
+  coverImage    String         @default("")
+  order         Int            @default(0)
+  published     Boolean        @default(true)
+  researchAreas ResearchArea[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// ─── Media & misc ────────────────────────────────────────────────────────────
+
+model GalleryAlbum {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  title       String
+  description String         @default("")
+  date        DateTime?
+  coverImage  String         @default("")
+  order       Int            @default(0)
+  published   Boolean        @default(true)
+  images      GalleryImage[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model GalleryImage {
+  id        String       @id @default(cuid())
+  url       String
+  caption   String       @default("")
+  order     Int          @default(0)
+  albumId   String
+  album     GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model Opportunity {
+  id         String    @id @default(cuid())
+  slug       String    @unique
+  title      String
+  type       String    @default("Graduate Student")
+  summary    String    @default("")
+  body       String    @default("")
+  deadline   DateTime?
+  applyUrl   String    @default("")
+  isOpen     Boolean   @default(true)
+  order      Int       @default(0)
+  published  Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Partner {
+  id        String   @id @default(cuid())
+  name      String
+  logo      String   @default("")
+  url       String   @default("")
+  country   String   @default("")
+  order     Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Page {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  title          String
+  subtitle       String   @default("")
+  body           String   @default("")
+  coverImage     String   @default("")
+  seoDescription String   @default("")
+  published      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String   @default("")
+  type      String   @default("")
+  message   String
+  read      Boolean  @default(false)
+  ipHash    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// ─── Admin & security ────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  EDITOR
+  MEMBER
+}
+
+model User {
+  id                 String     @id @default(cuid())
+  name               String
+  email              String     @unique
+  passwordHash       String     @default("") // empty for passwordless (OTP-only) members
+  role               Role       @default(MEMBER)
+  active             Boolean    @default(true)
+  mustChangePassword Boolean    @default(false)
+  failedAttempts     Int        @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  memberId           String?    @unique
+  member             Member?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  sessions           Session[]
+  auditLogs          AuditLog[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+// One-time e-mail codes for member sign-up / sign-in and admin 2-step login.
+// Only an HMAC of the code is stored.
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  email      String
+  purpose    String    // signup | login | admin-2fa
+  codeHash   String
+  name       String    @default("")
+  userId     String?
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
+}
+
+// Opaque server-side sessions: the cookie holds a random token, the DB holds
+// only its SHA-256 hash, so a leaked database cannot be replayed as cookies.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  userAgent String   @default("")
+  ipHash    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String   @default("")
+  summary   String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// Fixed-window rate limiter shared by login and contact form.
+model RateLimit {
+  key       String   @id
+  count     Int      @default(0)
+  resetAt   DateTime
+}

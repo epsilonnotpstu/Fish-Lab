@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+developer.txt
+node_modules
+.next
+tsconfig.tsbuildinfo
+.git
