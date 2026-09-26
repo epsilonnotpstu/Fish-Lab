@@ -5,6 +5,7 @@ import { z } from "zod";
 import { assertUser, audit, AuthError } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getResource, settingsFields } from "@/lib/admin/resources";
+import { notifiableUserIds, pushToUsers } from "@/lib/push";
 import {
   delegate,
   friendlyDbError,
@@ -87,10 +88,24 @@ export async function saveResource(
 
     const title = String(values[resource.titleField] ?? values.type ?? "");
     await audit(user.id, recordId ? "update" : "create", resource.singular, id ?? "", title);
+    if (resource.key === "notices" && !recordId && values.published !== false) {
+      await notifyNotice(title, String(values.body ?? ""));
+    }
     refreshSite();
     return { ok: true, id: id ?? undefined };
   } catch (err) {
     return fail(err);
+  }
+}
+
+/** Tell members about a new notice. */
+async function notifyNotice(title: string, body: string) {
+  try {
+    const recipients = await notifiableUserIds({ kind: "notice" });
+    const text = body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 140);
+    await pushToUsers(recipients, { title: `Notice: ${title}`.slice(0, 120), body: text, link: "/notices", tag: "notice" });
+  } catch (err) {
+    console.error("notice push failed", err);
   }
 }
 

@@ -1,0 +1,35 @@
+{
+  "appId": "org.aalabfst.app",
+  "appName": "AA Lab",
+  "webDir": "www",
+  "server": {
+    "url": "https://aalabfst.org/account",
+    "hostname": "aalabfst.org",
+    "androidScheme": "https",
+    "allowNavigation": [
+      "aalabfst.org",
+      "*.aalabfst.org",
+      "accounts.google.com",
+      "*.googleusercontent.com"
+    ]
+  },
+  "android": {
+    "backgroundColor": "#0b3b5c",
+    "webContentsDebuggingEnabled": false,
+    "appendUserAgent": "AALabApp/1.0"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 1200,
+      "backgroundColor": "#0b3b5c",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0b3b5c"
+    }
+  },
+  "appendUserAgent": "AALabApp/1.0"
+}

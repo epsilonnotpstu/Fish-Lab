@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { assertUser, audit, AuthError } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { sendMail, mailConfigured } from "@/lib/mail";
+import { pushToUsers } from "@/lib/push";
 import type { ActionResult } from "./resources";
 
 const idSchema = z.string().regex(/^[a-z0-9]{10,40}$/i);
@@ -47,6 +48,15 @@ export async function approveMember(id: string): Promise<ActionResult> {
       data: { status: "APPROVED", published: true, approvedAt: new Date(), approvedById: me.id, reviewNote: "" },
     });
     await audit(me.id, "approve member", "Member", id, member.name);
+    const account = await db.user.findFirst({ where: { memberId: id }, select: { id: true } });
+    if (account) {
+      await pushToUsers([account.id], {
+        title: "Membership approved",
+        body: "You can now use the lab group, attendance and notices.",
+        link: "/account",
+        tag: "approval",
+      });
+    }
     await notifyMember(id, "Your lab membership has been approved", "Your membership of the lab has been approved. You can now sign in and use the member portal.");
     revalidatePath("/", "layout");
     return { ok: true };

@@ -26,6 +26,7 @@ import { applicationFields, memberEditableFields, memberReadOnlyFields } from "@
 import { cn } from "@/lib/utils";
 import { FieldsGrid, groupBySection, type Options, type Values } from "@/components/fields/field-renderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PushToggle, type PushConfig } from "./push-toggle";
 
 export type PortalMember = {
   id: string;
@@ -86,11 +87,15 @@ export function MemberPortal({
   values,
   options,
   approved,
+  pushConfig,
+  notifyPrefs,
 }: {
   member: PortalMember;
   values: Values;
   options: Options;
   approved: boolean;
+  pushConfig: PushConfig | null;
+  notifyPrefs: { notifyChat: boolean; notifyNotices: boolean };
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Values>(values);
@@ -249,7 +254,8 @@ export function MemberPortal({
           </section>
         </TabsContent>
 
-        <TabsContent value="security">
+        <TabsContent value="security" className="space-y-6">
+          {approved && <PushToggle config={pushConfig} prefs={notifyPrefs} />}
           <section className="rounded-3xl border bg-card p-6 sm:p-8">
             <h2 className="flex items-center gap-2 text-lg font-bold"><Lock className="size-4" /> Password</h2>
             <p className="mt-1 text-sm text-muted-foreground">

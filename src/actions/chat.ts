@@ -6,6 +6,7 @@ import { audit, getCurrentUser, isStaff } from "@/lib/auth";
 import { chatAccess, messageInclude, toChatDto, type ChatDto } from "@/lib/chat";
 import { rateLimit } from "@/lib/rate-limit";
 import { sanitizeRichText } from "@/lib/sanitize";
+import { notifiableUserIds, pushToUsers } from "@/lib/push";
 
 export type SendResult = { ok: boolean; error?: string; message?: ChatDto };
 
@@ -62,7 +63,28 @@ export async function sendMessage(input: unknown): Promise<SendResult> {
     include: messageInclude,
   });
 
+  await notifyGroup(access.userId, access.name, message.kind, message.body);
   return { ok: true, message: toChatDto(message) };
+}
+
+/**
+ * One push per recipient per minute, so a burst of messages does not turn into
+ * a burst of notifications.
+ */
+async function notifyGroup(authorId: string, authorName: string, kind: string, body: string) {
+  try {
+    const recipients = await notifiableUserIds({ kind: "chat", exclude: authorId });
+    const allowed: string[] = [];
+    for (const id of recipients) {
+      if (await rateLimit(`push-chat:${id}`, 1, 60 * 1000)) allowed.push(id);
+    }
+    if (!allowed.length) return;
+    const preview =
+      kind === "IMAGE" ? "sent a photo" : kind === "FILE" ? "sent a file" : kind === "AUDIO" ? "sent a voice message" : body.slice(0, 120);
+    await pushToUsers(allowed, { title: `${authorName} · lab group`, body: preview, link: "/account/chat", tag: "chat" });
+  } catch (err) {
+    console.error("chat push failed", err);
+  }
 }
 
 export async function deleteMessage(id: string): Promise<{ ok: boolean; error?: string }> {

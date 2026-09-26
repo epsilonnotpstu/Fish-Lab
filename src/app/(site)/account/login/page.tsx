@@ -5,6 +5,7 @@ import { getCurrentUser, isStaff } from "@/lib/auth";
 import { PageHeader } from "@/components/site/page-header";
 import { MemberLoginForm } from "@/components/site/member-auth-form";
 import { googleConfigured } from "@/lib/google-oauth";
+import { isLabApp } from "@/lib/request";
 
 const NOTICES: Record<string, string> = {
   staff: "This email belongs to a staff account. Please sign in at /admin with your password.",
@@ -21,6 +22,7 @@ export const metadata: Metadata = { title: "Member sign in", robots: { index: fa
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
+  const inApp = await isLabApp();
   const user = await getCurrentUser();
   if (user) redirect(isStaff(user.role) ? "/admin" : "/account");
   return (
@@ -30,7 +32,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
         <div className="container-page max-w-md">
           <div className="rounded-3xl border bg-card p-6 shadow-xl shadow-brand/5 sm:p-8">
             <span className="mb-6 grid size-12 place-items-center rounded-2xl bg-accent text-accent-foreground"><KeyRound className="size-5" /></span>
-            <MemberLoginForm googleEnabled={googleConfigured()} notice={error ? NOTICES[error] : undefined} />
+            <MemberLoginForm googleEnabled={googleConfigured() && !inApp} notice={error ? NOTICES[error] : undefined} />
           </div>
         </div>
       </section>

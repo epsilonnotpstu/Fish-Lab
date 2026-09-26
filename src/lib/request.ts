@@ -13,6 +13,14 @@ export async function clientIpHash() {
   return hashIp(await clientIp());
 }
 
+/**
+ * Our Android shell adds AALabApp to the user agent. Google blocks OAuth in
+ * embedded web views, so the app uses password / e-mail-code sign-in instead.
+ */
+export async function isLabApp() {
+  return (await userAgent()).includes("AALabApp");
+}
+
 export async function userAgent() {
   return ((await headers()).get("user-agent") ?? "").slice(0, 255);
 }

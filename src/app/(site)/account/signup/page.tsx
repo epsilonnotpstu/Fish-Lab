@@ -5,6 +5,7 @@ import { getCurrentUser, isStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { googleConfigured } from "@/lib/google-oauth";
+import { isLabApp } from "@/lib/request";
 import { PageHeader } from "@/components/site/page-header";
 import { SignupWizard } from "@/components/site/signup-wizard";
 
@@ -14,6 +15,7 @@ export default async function Page() {
   const user = await getCurrentUser();
   if (user) redirect(isStaff(user.role) ? "/admin" : "/account");
   const settings = await getSettings();
+  const inApp = await isLabApp();
 
   const supervisors = await db.member.findMany({
     where: { published: true, status: "APPROVED", program: "Faculty" },
@@ -40,7 +42,7 @@ export default async function Page() {
             </span>
             {settings.memberSignupEnabled ? (
               <SignupWizard
-                googleEnabled={googleConfigured()}
+                googleEnabled={googleConfigured() && !inApp}
                 supervisors={supervisors.map((m) => ({ value: m.id, label: m.name }))}
                 defaults={{ faculty: settings.faculty, department: settings.department }}
               />

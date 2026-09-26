@@ -9,6 +9,20 @@ import { memberLogoutAction } from "@/actions/member-auth";
 import { PageHeader } from "@/components/site/page-header";
 import { MemberAvatar } from "@/components/site/cards";
 import { MemberPortal, type PortalMember } from "@/components/site/member-portal";
+import type { PushConfig } from "@/components/site/push-toggle";
+
+/** Public Firebase web config; empty until the project is configured. */
+function pushConfig(): PushConfig | null {
+  const cfg = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "",
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_SENDER_ID ?? "",
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "",
+    vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? "",
+  };
+  return Object.values(cfg).every(Boolean) ? cfg : null;
+}
 
 export const metadata: Metadata = { title: "Member portal", robots: { index: false } };
 
@@ -83,6 +97,8 @@ export default async function AccountPage() {
 
           <div className="lg:col-span-8">
             <MemberPortal
+              pushConfig={pushConfig()}
+              notifyPrefs={{ notifyChat: account.notifyChat, notifyNotices: account.notifyNotices }}
               member={portalMember}
               approved={account.active && member?.status === "APPROVED"}
               options={{ supervisor: faculty.map((f) => ({ value: f.id, label: f.name })) }}

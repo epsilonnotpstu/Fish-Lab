@@ -11,7 +11,7 @@ function buildCsp(nonce: string) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://api.cloudinary.com",
+    "connect-src 'self' https://api.cloudinary.com https://fcm.googleapis.com https://fcmregistrations.googleapis.com https://firebaseinstallations.googleapis.com",
     "media-src 'self' https:",
     "frame-src https://www.google.com https://maps.google.com https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com",
     "object-src 'none'",
@@ -55,6 +55,8 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Runs for prefetches too, so x-pathname / x-nonce can never be client-supplied.
-    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
+    // The messaging service worker needs to importScripts() from gstatic, so it
+    // is served with its own headers instead of the page CSP.
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|firebase-messaging-sw.js).*)",
   ],
 };
