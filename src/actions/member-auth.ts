@@ -27,8 +27,10 @@ const nameSchema = z.string().trim().min(2, "Please enter your full name.").max(
 
 async function throttle(email: string) {
   const ip = await clientIpHash();
+  // A whole campus can share one address, so the per-IP budget is generous;
+  // the per-address limit is what stops someone being spammed with codes.
   const [byIp, byEmail] = await Promise.all([
-    rateLimit(`otp-send-ip:${ip}`, 10, 60 * 60 * 1000),
+    rateLimit(`otp-send-ip:${ip}`, 40, 60 * 60 * 1000),
     rateLimit(`otp-send-email:${email}`, 5, 60 * 60 * 1000),
   ]);
   return byIp && byEmail;
