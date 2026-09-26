@@ -3,17 +3,20 @@
  * Railway blocks outbound SMTP, so the website sends mail over HTTPS to this
  * script, which sends it from your own Gmail account.
  *
- * Setup: script.google.com → New project → paste this file → Deploy →
+ * Setup: script.google.com → New project → paste this file →
+ * Project Settings → Script Properties → MAIL_WEBHOOK_SECRET = <same value as on Railway> → Deploy →
  * New deployment → type "Web app" → Execute as: Me, Who has access: Anyone
  * → Deploy → authorise → copy the Web app URL.
  */
-const SECRET = "2cd848dec0bfe38ea8c63b952de70c996380e905ef33a1e7"; // must match MAIL_WEBHOOK_SECRET on Railway
+// Secret lives in Script Properties, never in this file:
+// Apps Script → Project Settings → Script Properties → add MAIL_WEBHOOK_SECRET
+const SECRET = PropertiesService.getScriptProperties().getProperty("MAIL_WEBHOOK_SECRET");
 const SENDER_NAME = "AA Lab";
 
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
-    if (body.secret !== SECRET) return json({ ok: false, error: "unauthorized" });
+    if (!SECRET || body.secret !== SECRET) return json({ ok: false, error: "unauthorized" });
 
     const to = String(body.to || "");
     if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(to)) return json({ ok: false, error: "bad recipient" });
