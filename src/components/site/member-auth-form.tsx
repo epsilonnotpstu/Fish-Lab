@@ -75,6 +75,12 @@ export function MemberAuthForm({ mode, googleEnabled = false, notice }: { mode: 
             <p className="mt-1 text-emerald-800/80 dark:text-emerald-300/80">
               Enter the 6-digit code below. Check your spam folder if it does not arrive within a minute.
             </p>
+            {mode === "login" && (
+              <p className="mt-1 text-emerald-800/80 dark:text-emerald-300/80">
+                No code arrives if this address has no member account yet —{" "}
+                <Link href="/account/signup" className="font-semibold underline underline-offset-2">create one first</Link>.
+              </p>
+            )}
             <p className="mt-2 font-medium">
               {secondsLeft > 0 ? (
                 <>Code expires in {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</>
