@@ -42,7 +42,8 @@ export default async function Page() {
             </span>
             {settings.memberSignupEnabled ? (
               <SignupWizard
-                googleEnabled={googleConfigured() && !inApp}
+                googleEnabled={googleConfigured()}
+                inApp={inApp}
                 supervisors={supervisors.map((m) => ({ value: m.id, label: m.name }))}
                 defaults={{ faculty: settings.faculty, department: settings.department }}
               />

@@ -18,10 +18,14 @@ const CODE_TTL_SECONDS = 10 * 60;
 const input =
   "h-12 w-full rounded-2xl border bg-background px-4 text-sm outline-none transition focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/15";
 
-export function GoogleButton({ label }: { label: string }) {
+export function GoogleButton({ label, inApp = false }: { label: string; inApp?: boolean }) {
   return (
     <a
-      href="/api/auth/google"
+      // Google refuses OAuth inside a web view, so the app opens the system
+      // browser and gets handed back a session afterwards.
+      href={inApp ? "/api/auth/google?app=1" : "/api/auth/google"}
+      target={inApp ? "_blank" : undefined}
+      rel={inApp ? "noopener noreferrer" : undefined}
       className="flex h-12 w-full items-center justify-center gap-3 rounded-full border bg-background text-sm font-semibold transition hover:bg-muted"
     >
       <svg viewBox="0 0 48 48" className="size-5" aria-hidden>
@@ -35,7 +39,15 @@ export function GoogleButton({ label }: { label: string }) {
   );
 }
 
-export function MemberLoginForm({ googleEnabled = false, notice }: { googleEnabled?: boolean; notice?: string }) {
+export function MemberLoginForm({
+  googleEnabled = false,
+  notice,
+  inApp = false,
+}: {
+  googleEnabled?: boolean;
+  notice?: string;
+  inApp?: boolean;
+}) {
   const [mode, setMode] = useState<"password" | "code">("password");
   const [showPassword, setShowPassword] = useState(false);
   const [pwState, pwAction, pwPending] = useActionState<MemberAuthState, FormData>(loginWithPassword, undefined);
@@ -125,7 +137,7 @@ export function MemberLoginForm({ googleEnabled = false, notice }: { googleEnabl
       {notice && <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{notice}</p>}
       {googleEnabled && (
         <>
-          <GoogleButton label="Continue with Google" />
+          <GoogleButton label="Continue with Google" inApp={inApp} />
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="h-px flex-1 bg-border" /> or sign in with your email <span className="h-px flex-1 bg-border" />
           </div>

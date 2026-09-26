@@ -5,6 +5,10 @@ import { audit, createSession, isStaff } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { clientIpHash } from "@/lib/request";
 import { exchangeCode, GOOGLE_COOKIE, googleConfigured } from "@/lib/google-oauth";
+import { createHandoffToken } from "@/lib/app-handoff";
+
+/** Deep link back into the Android app after a browser sign-in. */
+const APP_SCHEME = process.env.APP_DEEP_LINK_SCHEME || "aalabapp";
 
 function back(error: string) {
   const res = NextResponse.redirect(new URL(`/account/login?error=${error}`, process.env.SITE_URL));
@@ -27,7 +31,7 @@ export async function GET(request: NextRequest) {
   const code = params.get("code") ?? "";
   const state = params.get("state") ?? "";
 
-  let saved: { state: string; nonce: string; verifier: string };
+  let saved: { state: string; nonce: string; verifier: string; app?: boolean };
   try {
     saved = JSON.parse(request.cookies.get(GOOGLE_COOKIE)?.value ?? "");
   } catch {
@@ -59,6 +63,15 @@ export async function GET(request: NextRequest) {
   }
 
   await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+
+  if (saved.app) {
+    // The browser's cookies cannot reach the app, so send a single-use token.
+    const token = await createHandoffToken(user.id, user.email);
+    const res = NextResponse.redirect(`${APP_SCHEME}://auth?t=${encodeURIComponent(token)}`);
+    res.cookies.delete({ name: GOOGLE_COOKIE, path: "/api/auth/google" });
+    return res;
+  }
+
   await createSession(user.id);
   const res = NextResponse.redirect(new URL("/account", process.env.SITE_URL));
   res.cookies.delete({ name: GOOGLE_COOKIE, path: "/api/auth/google" });

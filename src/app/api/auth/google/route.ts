@@ -3,10 +3,13 @@ import { createHash, randomBytes } from "node:crypto";
 import { GOOGLE_COOKIE, googleConfigured, redirectUri } from "@/lib/google-oauth";
 
 /** Start "Continue with Google": redirect to Google with state, nonce and PKCE. */
-export async function GET() {
+export async function GET(request: Request) {
   const site = process.env.SITE_URL ?? "";
   if (!googleConfigured()) return NextResponse.redirect(new URL("/account/login?error=google_off", site || "http://localhost:3000"));
 
+  // When the app opens this in the system browser it asks for a handoff token
+  // instead of a browser session.
+  const fromApp = new URL(request.url).searchParams.get("app") === "1";
   const state = randomBytes(24).toString("base64url");
   const nonce = randomBytes(24).toString("base64url");
   const verifier = randomBytes(48).toString("base64url");
@@ -26,7 +29,7 @@ export async function GET() {
   }).toString();
 
   const res = NextResponse.redirect(url);
-  res.cookies.set(GOOGLE_COOKIE, JSON.stringify({ state, nonce, verifier }), {
+  res.cookies.set(GOOGLE_COOKIE, JSON.stringify({ state, nonce, verifier, app: fromApp }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

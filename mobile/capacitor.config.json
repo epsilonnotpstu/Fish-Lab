@@ -8,9 +8,7 @@
     "androidScheme": "https",
     "allowNavigation": [
       "aalabfst.org",
-      "*.aalabfst.org",
-      "accounts.google.com",
-      "*.googleusercontent.com"
+      "*.aalabfst.org"
     ]
   },
   "android": {

@@ -24,10 +24,12 @@ const input =
 
 export function SignupWizard({
   googleEnabled,
+  inApp = false,
   supervisors,
   defaults,
 }: {
   googleEnabled: boolean;
+  inApp?: boolean;
   supervisors: { value: string; label: string }[];
   defaults: { faculty: string; department: string };
 }) {
@@ -180,7 +182,7 @@ export function SignupWizard({
         <div className="space-y-5">
           {googleEnabled && (
             <>
-              <GoogleButton label="Sign up with Google" />
+              <GoogleButton label="Sign up with Google" inApp={inApp} />
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" /> or use your email <span className="h-px flex-1 bg-border" />
               </div>
