@@ -17,10 +17,13 @@ export function slugify(input: string) {
     .slice(0, 80);
 }
 
+const HONORIFICS = new Set(["prof", "dr", "mr", "mrs", "ms", "md", "engr", "prof.", "dr.", "md."]);
+
 export function initials(name: string) {
   return name
     .split(/\s+/)
     .filter(Boolean)
+    .filter((part) => !HONORIFICS.has(part.toLowerCase().replace(/\.$/, "")))
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join("");

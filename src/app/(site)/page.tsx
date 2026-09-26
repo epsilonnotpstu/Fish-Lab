@@ -19,12 +19,12 @@ import { safeImage } from "@/lib/safe";
 
 async function liveCounts() {
   const [members, publications, projects, partners, research, alumni] = await Promise.all([
-    db.member.count({ where: { published: true, isAlumni: false } }),
+    db.member.count({ where: { published: true, status: "APPROVED", isAlumni: false } }),
     db.publication.count({ where: { published: true } }),
     db.project.count({ where: { published: true } }),
     db.partner.count({ where: { published: true } }),
     db.researchArea.count({ where: { published: true } }),
-    db.member.count({ where: { published: true, isAlumni: true } }),
+    db.member.count({ where: { published: true, status: "APPROVED", isAlumni: true } }),
   ]);
   return { members, publications, projects, partners, research, alumni } as Record<string, number>;
 }
@@ -50,7 +50,7 @@ export default async function HomePage() {
       : [],
     has("members")
       ? db.member.findMany({
-          where: { published: true, isAlumni: false, ...(memberGroup ? { category: { slug: memberGroup } } : {}) },
+          where: { published: true, status: "APPROVED", isAlumni: false, ...(memberGroup ? { category: { slug: memberGroup } } : {}) },
           orderBy: { order: "asc" },
           take: limitOf("members", 4),
         })

@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Dashboard" };
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ denied?: string }> }) {
   const user = await requireUser();
   const { denied } = await searchParams;
-  const [settings, members, research, news, pubs, unread, messages, activity, events] = await Promise.all([
+  const [settings, members, research, news, pubs, unread, messages, activity, events, pending] = await Promise.all([
     getSettings(),
     db.member.count({ where: { isAlumni: false } }),
     db.researchArea.count(),
@@ -25,6 +25,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     db.contactMessage.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
     db.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 8, include: { user: { select: { name: true } } } }),
     db.event.findMany({ where: { startDate: { gte: new Date() } }, orderBy: { startDate: "asc" }, take: 3 }),
+    db.member.count({ where: { status: "PENDING" } }),
   ]);
 
   const stats = [
@@ -58,6 +59,16 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </div>
         </div>
       </div>
+
+      {pending > 0 && (
+        <Link href="/admin/approvals" className="flex items-center gap-3 rounded-xl border border-brand-accent/40 bg-accent p-4 text-sm text-accent-foreground transition hover:shadow-md">
+          <Users className="size-5" />
+          <span>
+            <strong>{pending} member {pending === 1 ? "request" : "requests"}</strong> waiting for review.
+          </span>
+          <ArrowRight className="ml-auto size-4" />
+        </Link>
+      )}
 
       {!cloudinaryConfigured() && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">

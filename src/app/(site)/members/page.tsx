@@ -8,15 +8,34 @@ import { Reveal } from "@/components/site/reveal";
 
 export const metadata: Metadata = { title: "Members" };
 
+/** Never send private member columns to a public page. */
+const PUBLIC_CARD = {
+  id: true,
+  slug: true,
+  name: true,
+  position: true,
+  photo: true,
+  program: true,
+  currentPosition: true,
+  graduationYear: true,
+  isAlumni: true,
+} as const;
+
 export default async function MembersPage() {
   const [settings, groups, ungrouped, alumni] = await Promise.all([
     getSettings(),
     db.memberCategory.findMany({
       orderBy: { order: "asc" },
-      include: { members: { where: { published: true, isAlumni: false }, orderBy: { order: "asc" } } },
+      include: {
+        members: {
+          where: { published: true, status: "APPROVED", isAlumni: false },
+          orderBy: { order: "asc" },
+          select: PUBLIC_CARD,
+        },
+      },
     }),
-    db.member.findMany({ where: { published: true, isAlumni: false, categoryId: null }, orderBy: { order: "asc" } }),
-    db.member.findMany({ where: { published: true, isAlumni: true }, orderBy: [{ graduationYear: "desc" }, { order: "asc" }] }),
+    db.member.findMany({ where: { published: true, status: "APPROVED", isAlumni: false, categoryId: null }, orderBy: { order: "asc" }, select: PUBLIC_CARD }),
+    db.member.findMany({ where: { published: true, status: "APPROVED", isAlumni: true }, orderBy: [{ graduationYear: "desc" }, { order: "asc" }], select: PUBLIC_CARD }),
   ]);
 
   const sections = [

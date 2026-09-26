@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { getCurrentUser, isStaff } from "@/lib/auth";
 import { PageHeader } from "@/components/site/page-header";
-import { MemberAuthForm } from "@/components/site/member-auth-form";
+import { MemberLoginForm } from "@/components/site/member-auth-form";
 import { googleConfigured } from "@/lib/google-oauth";
 
 const NOTICES: Record<string, string> = {
@@ -30,7 +30,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
         <div className="container-page max-w-md">
           <div className="rounded-3xl border bg-card p-6 shadow-xl shadow-brand/5 sm:p-8">
             <span className="mb-6 grid size-12 place-items-center rounded-2xl bg-accent text-accent-foreground"><KeyRound className="size-5" /></span>
-            <MemberAuthForm mode="login" googleEnabled={googleConfigured()} notice={error ? NOTICES[error] : undefined} />
+            <MemberLoginForm googleEnabled={googleConfigured()} notice={error ? NOTICES[error] : undefined} />
           </div>
         </div>
       </section>

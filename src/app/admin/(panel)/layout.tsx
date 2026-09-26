@@ -19,7 +19,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await requireUser();
   const pathname = (await headers()).get("x-pathname") ?? "";
   if (user.mustChangePassword && !pathname.startsWith("/admin/account")) redirect("/admin/account?first=1");
-  const [settings, unread] = await Promise.all([getSettings(), db.contactMessage.count({ where: { read: false } })]);
+  const [settings, unread, pending] = await Promise.all([
+    getSettings(),
+    db.contactMessage.count({ where: { read: false } }),
+    db.member.count({ where: { status: "PENDING" } }),
+  ]);
   const superAdmin = user.role === "SUPER_ADMIN";
 
   const byGroup = (g: string) =>
@@ -33,6 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       items: [
         { href: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
         { href: "/admin/messages", label: "Messages", icon: "Inbox", badge: unread },
+        { href: "/admin/approvals", label: "Approvals", icon: "UserRoundCheck", badge: pending },
       ],
     },
     { label: "Content", items: byGroup("Content") },

@@ -10,7 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const s = await getSettings();
   const [research, members, news, projects, events, albums, pages] = await Promise.all([
     db.researchArea.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } }),
-    db.member.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } }),
+    db.member.findMany({ where: { published: true, status: "APPROVED" }, select: { slug: true, updatedAt: true } }),
     db.newsPost.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } }),
     s.showProjects ? db.project.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } }) : [],
     s.showEvents ? db.event.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } }) : [],

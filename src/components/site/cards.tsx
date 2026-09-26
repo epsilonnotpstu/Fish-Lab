@@ -146,7 +146,10 @@ export function MemberAvatar({ member, className, eager = false }: { member: Pic
   );
 }
 
-export function MemberCard({ member }: { member: Member }) {
+export type PublicMember = Pick<Member, "id" | "slug" | "name" | "position" | "photo"> &
+  Partial<Pick<Member, "program" | "currentPosition" | "graduationYear" | "isAlumni">>;
+
+export function MemberCard({ member }: { member: PublicMember }) {
   return (
     <Link href={`/members/${member.slug}`} className="group block">
       <div className="relative overflow-hidden rounded-3xl">

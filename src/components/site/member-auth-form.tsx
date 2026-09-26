@@ -2,16 +2,18 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Loader2, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, LogIn, Send } from "lucide-react";
 import { toast } from "sonner";
 import {
+  loginWithPassword,
   requestLoginCode,
-  requestSignupCode,
   restartMemberAuth,
   verifyMemberCode,
   type MemberAuthState,
 } from "@/actions/member-auth";
 import { OtpInput } from "./otp-input";
+
+const CODE_TTL_SECONDS = 10 * 60;
 
 const input =
   "h-12 w-full rounded-2xl border bg-background px-4 text-sm outline-none transition focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/15";
@@ -33,66 +35,59 @@ export function GoogleButton({ label }: { label: string }) {
   );
 }
 
-const CODE_TTL_SECONDS = 10 * 60;
-
-export function MemberAuthForm({ mode, googleEnabled = false, notice }: { mode: "login" | "signup"; googleEnabled?: boolean; notice?: string }) {
-  const [reqState, requestAction, requesting] = useActionState<MemberAuthState, FormData>(
-    mode === "signup" ? requestSignupCode : requestLoginCode,
-    undefined,
-  );
+export function MemberLoginForm({ googleEnabled = false, notice }: { googleEnabled?: boolean; notice?: string }) {
+  const [mode, setMode] = useState<"password" | "code">("password");
+  const [showPassword, setShowPassword] = useState(false);
+  const [pwState, pwAction, pwPending] = useActionState<MemberAuthState, FormData>(loginWithPassword, undefined);
+  const [codeState, codeAction, codePending] = useActionState<MemberAuthState, FormData>(requestLoginCode, undefined);
   const [verifyState, verifyAction, verifying] = useActionState<MemberAuthState, FormData>(verifyMemberCode, undefined);
   const [reset, setReset] = useState(0);
-  const [cooldown, setCooldown] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(CODE_TTL_SECONDS);
-  const sentAt = useRef<string | null>(null);
+  const [cooldown, setCooldown] = useState(false);
+  const sent = useRef<string | null>(null);
 
-  const otpStep = reqState?.step === "otp" && verifyState?.step !== "email" && reset === 0;
+  const otpStep = mode === "code" && codeState?.step === "otp" && verifyState?.step !== "email" && reset === 0;
 
-  // Confirm each send (first code and every resend) and restart the countdown.
   useEffect(() => {
-    if (!otpStep || !reqState?.email) return;
-    const stamp = `${reqState.email}:${reqState.sentAt ?? ""}`;
-    if (sentAt.current === stamp) return;
-    sentAt.current = stamp;
+    if (!otpStep || !codeState?.email) return;
+    const stamp = `${codeState.email}:${codeState.sentAt ?? ""}`;
+    if (sent.current === stamp) return;
+    sent.current = stamp;
     setSecondsLeft(CODE_TTL_SECONDS);
-    toast.success("OTP sent", { description: `Check the inbox of ${reqState.email}` });
-  }, [otpStep, reqState?.email, reqState?.sentAt]);
+    toast.success("OTP sent", { description: `Check the inbox of ${codeState.email}` });
+  }, [otpStep, codeState?.email, codeState?.sentAt]);
 
   useEffect(() => {
     if (!otpStep) return;
     const id = setInterval(() => setSecondsLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
     return () => clearInterval(id);
   }, [otpStep]);
-  const error = otpStep ? verifyState?.error : (verifyState?.step === "email" ? verifyState.error : undefined) ?? reqState?.error;
 
-  if (otpStep) {
+  if (otpStep && codeState?.email) {
     return (
       <div className="space-y-6">
         <div className="flex gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-300">
           <CheckCircle2 className="size-5 shrink-0" />
           <div>
-            <p className="font-semibold">OTP sent to {reqState.email}</p>
+            <p className="font-semibold">OTP sent to {codeState.email}</p>
             <p className="mt-1 text-emerald-800/80 dark:text-emerald-300/80">
-              Enter the 6-digit code below. Check your spam folder if it does not arrive within a minute.
+              Enter the 6-digit code below. No code arrives if this address has no member account yet —{" "}
+              <Link href="/account/signup" className="font-semibold underline underline-offset-2">create one first</Link>.
             </p>
-            {mode === "login" && (
-              <p className="mt-1 text-emerald-800/80 dark:text-emerald-300/80">
-                No code arrives if this address has no member account yet —{" "}
-                <Link href="/account/signup" className="font-semibold underline underline-offset-2">create one first</Link>.
-              </p>
-            )}
             <p className="mt-2 font-medium">
               {secondsLeft > 0 ? (
                 <>Code expires in {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</>
               ) : (
-                <>This code has expired — use “Resend code” to get a new one.</>
+                <>This code has expired — use “Resend code”.</>
               )}
             </p>
           </div>
         </div>
         <form action={verifyAction} className="space-y-5">
           <OtpInput name="code" autoFocus />
-          {error && <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
+          {verifyState?.error && (
+            <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{verifyState.error}</p>
+          )}
           <button disabled={verifying} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60">
             {verifying && <Loader2 className="size-4 animate-spin" />} Verify code
           </button>
@@ -112,12 +107,11 @@ export function MemberAuthForm({ mode, googleEnabled = false, notice }: { mode: 
             action={(fd) => {
               setCooldown(true);
               setTimeout(() => setCooldown(false), 30_000);
-              requestAction(fd);
+              codeAction(fd);
             }}
           >
-            <input type="hidden" name="email" value={reqState.email} />
-            {mode === "signup" && <input type="hidden" name="name" value={String(reqState.email).split("@")[0]} />}
-            <button disabled={requesting || cooldown} className="font-medium text-brand hover:underline disabled:opacity-50 dark:text-brand-accent">
+            <input type="hidden" name="email" value={codeState.email} />
+            <button disabled={codePending || cooldown} className="font-medium text-brand hover:underline disabled:opacity-50 dark:text-brand-accent">
               Resend code
             </button>
           </form>
@@ -131,50 +125,65 @@ export function MemberAuthForm({ mode, googleEnabled = false, notice }: { mode: 
       {notice && <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{notice}</p>}
       {googleEnabled && (
         <>
-          <GoogleButton label={mode === "signup" ? "Sign up with Google" : "Continue with Google"} />
+          <GoogleButton label="Continue with Google" />
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" /> or use a one-time email code <span className="h-px flex-1 bg-border" />
+            <span className="h-px flex-1 bg-border" /> or sign in with your email <span className="h-px flex-1 bg-border" />
           </div>
         </>
       )}
-    <form
-      action={(fd) => {
-        setReset(0);
-        requestAction(fd);
-      }}
-      className="space-y-5"
-    >
-      <div aria-hidden className="absolute -left-[9999px] h-0 overflow-hidden">
-        <input type="text" name="website" tabIndex={-1} autoComplete="off" />
-      </div>
-      {mode === "signup" && (
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium">Full name</span>
-          <input name="name" required minLength={2} maxLength={120} autoComplete="name" className={input} placeholder="Your name" />
-        </label>
+
+      {mode === "password" ? (
+        <form action={pwAction} className="space-y-5">
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium">Email</span>
+            <input name="email" type="email" required maxLength={254} autoComplete="email" className={input} placeholder="you@pstu.ac.bd" />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium">Password</span>
+            <span className="relative block">
+              <input name="password" type={showPassword ? "text" : "password"} required maxLength={128} autoComplete="current-password" className={`${input} pr-11`} />
+              <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute top-1/2 right-4 -translate-y-1/2 text-muted-foreground" aria-label={showPassword ? "Hide password" : "Show password"}>
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </span>
+          </label>
+          {pwState?.error && <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{pwState.error}</p>}
+          <button disabled={pwPending} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60">
+            {pwPending ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />} Sign in
+          </button>
+          <button type="button" onClick={() => setMode("code")} className="flex w-full items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <KeyRound className="size-4" /> Forgot password? Sign in with an email code
+          </button>
+        </form>
+      ) : (
+        <form
+          action={(fd) => {
+            setReset(0);
+            codeAction(fd);
+          }}
+          className="space-y-5"
+        >
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium">Email</span>
+            <input name="email" type="email" required maxLength={254} autoComplete="email" className={input} placeholder="you@pstu.ac.bd" autoFocus />
+          </label>
+          {codeState?.error && <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{codeState.error}</p>}
+          <button disabled={codePending} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60">
+            {codePending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Email me a sign-in code
+          </button>
+          <button type="button" onClick={() => setMode("password")} className="flex w-full items-center justify-center text-sm text-muted-foreground hover:text-foreground">
+            Use my password instead
+          </button>
+        </form>
       )}
-      <label className="block">
-        <span className="mb-2 block text-sm font-medium">Email</span>
-        <input name="email" type="email" required maxLength={254} autoComplete="email" className={input} placeholder="you@university.edu" autoFocus />
-      </label>
-      {error && <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
-      <button disabled={requesting} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60">
-        {requesting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-        {mode === "signup" ? "Create account" : "Email me a sign-in code"}
-      </button>
+
       <p className="rounded-2xl bg-muted/60 px-4 py-3 text-center text-xs text-muted-foreground">
-        Admins and editors do not use codes — they sign in at{" "}
-        <Link href="/admin/login" className="font-medium text-foreground hover:underline">/admin</Link>{" "}
-        with a password. No code is sent to a staff email address.
+        Admins and editors sign in at{" "}
+        <Link href="/admin/login" className="font-medium text-foreground hover:underline">/admin</Link> with their own password.
       </p>
       <p className="text-center text-sm text-muted-foreground">
-        {mode === "signup" ? (
-          <>Already have an account? <Link href="/account/login" className="font-medium text-foreground hover:underline">Sign in</Link></>
-        ) : (
-          <>New lab member? <Link href="/account/signup" className="font-medium text-foreground hover:underline">Create an account</Link></>
-        )}
+        New lab member? <Link href="/account/signup" className="font-medium text-foreground hover:underline">Create an account</Link>
       </p>
-    </form>
     </div>
   );
 }

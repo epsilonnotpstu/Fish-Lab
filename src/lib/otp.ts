@@ -16,7 +16,14 @@ function hashCode(challengeId: string, code: string) {
 }
 
 /** Create a challenge, e-mail the 6-digit code and remember the challenge in a short-lived cookie. */
-export async function startChallenge(opts: { email: string; purpose: OtpPurpose; name?: string; userId?: string }) {
+export async function startChallenge(opts: {
+  email: string;
+  purpose: OtpPurpose;
+  name?: string;
+  userId?: string;
+  /** Pending sign-up application; the password inside must already be hashed. */
+  payload?: Record<string, unknown>;
+}) {
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   // Invalidate earlier open challenges for the same email + purpose.
   await db.otpChallenge.updateMany({
@@ -28,6 +35,7 @@ export async function startChallenge(opts: { email: string; purpose: OtpPurpose;
       email: opts.email,
       purpose: opts.purpose,
       name: opts.name ?? "",
+      payload: (opts.payload ?? {}) as never,
       userId: opts.userId,
       codeHash: "pending",
       expiresAt: new Date(Date.now() + OTP_TTL_MS),

@@ -16,7 +16,11 @@ function Counter({ value }: { value: string }) {
     const controls = animate(0, target, {
       duration: 1.6,
       ease: "easeOut",
-      onUpdate: (v) => setDisplay(`${match[1]}${Math.round(v).toLocaleString()}${match[3]}`),
+      // Thousand separators only for large counts, so a year stays "2026".
+      onUpdate: (v) => {
+        const n = Math.round(v);
+        setDisplay(`${match[1]}${n >= 10000 ? n.toLocaleString() : n}${match[3]}`);
+      },
     });
     return () => controls.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps

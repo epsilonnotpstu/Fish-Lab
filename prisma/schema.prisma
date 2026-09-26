@@ -16,39 +16,39 @@ model SiteSettings {
   id Int @id @default(1)
 
   // Identity
-  labName      String  @default("Laboratory")
-  shortName    String  @default("LAB")
-  tagline      String  @default("")
-  description  String  @default("")
-  faculty      String  @default("")
-  department   String  @default("")
-  university   String  @default("")
+  labName       String @default("Laboratory")
+  shortName     String @default("LAB")
+  tagline       String @default("")
+  description   String @default("")
+  faculty       String @default("")
+  department    String @default("")
+  university    String @default("")
   universityUrl String @default("")
-  foundedYear  Int?
+  foundedYear   Int?
 
   // Branding
-  logoUrl      String  @default("")
-  logoDarkUrl  String  @default("")
-  faviconUrl   String  @default("")
-  primaryColor String  @default("#0b3b5c")
-  accentColor  String  @default("#14b8a6")
-  headingFont  String  @default("Plus Jakarta Sans")
-  bodyFont     String  @default("Inter")
+  logoUrl      String @default("")
+  logoDarkUrl  String @default("")
+  faviconUrl   String @default("")
+  primaryColor String @default("#0b3b5c")
+  accentColor  String @default("#14b8a6")
+  headingFont  String @default("Plus Jakarta Sans")
+  bodyFont     String @default("Inter")
 
   // Contact
-  email        String  @default("")
-  phone        String  @default("")
-  fax          String  @default("")
-  address      String  @default("")
-  officeHours  String  @default("")
-  mapEmbedUrl  String  @default("")
-  accessInfo   String  @default("") // rich text: how to reach the lab
-  socials      Json    @default("[]") // [{ platform, url }]
+  email       String @default("")
+  phone       String @default("")
+  fax         String @default("")
+  address     String @default("")
+  officeHours String @default("")
+  mapEmbedUrl String @default("")
+  accessInfo  String @default("") // rich text: how to reach the lab
+  socials     Json   @default("[]") // [{ platform, url }]
 
   // Footer
-  footerAbout  String  @default("")
-  footerLinks  Json    @default("[]") // [{ label, url }]
-  copyright    String  @default("")
+  footerAbout String @default("")
+  footerLinks Json   @default("[]") // [{ label, url }]
+  copyright   String @default("")
 
   // SEO
   seoTitle       String @default("")
@@ -66,6 +66,16 @@ model SiteSettings {
   contactIntro       String  @default("")
   inquiryTypes       Json    @default("[]") // ["Lab visit", "Collaboration", ...]
 
+  // Member area
+  labLat                  String  @default("")
+  labLng                  String  @default("")
+  attendanceRadiusMeters  Int     @default(200)
+  attendanceRequiresFence Boolean @default(true)
+  appApkUrl               String  @default("")
+  appVersion              String  @default("")
+  memberSignupEnabled     Boolean @default(true)
+  memberSignupNote        String  @default("")
+
   // Feature toggles (hide whole sections of the site)
   showPublications Boolean @default(true)
   showProjects     Boolean @default(true)
@@ -73,6 +83,7 @@ model SiteSettings {
   showEvents       Boolean @default(true)
   showJoinUs       Boolean @default(true)
   showAlumni       Boolean @default(true)
+  showNotices      Boolean @default(true)
 
   updatedAt DateTime @updatedAt
 }
@@ -151,30 +162,68 @@ model MemberCategory {
   updatedAt DateTime @updatedAt
 }
 
+enum MemberStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Member {
-  id                String         @id @default(cuid())
-  slug              String         @unique
+  id                String          @id @default(cuid())
+  slug              String          @unique
   name              String
-  position          String         @default("")
-  photo             String         @default("")
-  email             String         @default("")
-  phone             String         @default("")
-  bio               String         @default("")
-  researchInterests String         @default("")
-  education         String         @default("")
-  links             Json           @default("[]") // [{ label, url }]
+  position          String          @default("")
+  photo             String          @default("")
+  email             String          @default("")
+  phone             String          @default("")
+  bio               String          @default("")
+  researchInterests String          @default("")
+  education         String          @default("")
+  links             Json            @default("[]") // [{ label, url }]
   joinYear          Int?
   graduationYear    Int?
-  currentPosition   String         @default("") // for alumni
-  isAlumni          Boolean        @default(false)
-  order             Int            @default(0)
-  published         Boolean        @default(true)
+  currentPosition   String          @default("") // for alumni
+  isAlumni          Boolean         @default(false)
+  order             Int             @default(0)
+  published         Boolean         @default(true)
   categoryId        String?
   category          MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   researchAreas     ResearchArea[]
   account           User?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+
+  // Academic details (public-safe)
+  program      String   @default("") // BSc / MSc / PhD / Staff / Faculty
+  session      String   @default("") // e.g. 2021-22
+  semester     String   @default("")
+  faculty      String   @default("")
+  department   String   @default("")
+  skills       Json     @default("[]")
+  supervisorId String?
+  supervisor   Member?  @relation("Supervision", fields: [supervisorId], references: [id], onDelete: SetNull)
+  supervisees  Member[] @relation("Supervision")
+
+  // Private details — owner and staff only, never rendered publicly
+  studentId        String    @default("")
+  registrationNo   String    @default("")
+  whatsapp         String    @default("")
+  bloodGroup       String    @default("")
+  dateOfBirth      DateTime?
+  address          String    @default("")
+  emergencyContact String    @default("")
+
+  // Sign-up approval
+  status       MemberStatus @default(APPROVED)
+  appliedAt    DateTime?
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?        @relation("MemberApproval", fields: [approvedById], references: [id], onDelete: SetNull)
+  reviewNote   String       @default("")
+
+  attendances Attendance[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status])
 }
 
 // ─── News & events ───────────────────────────────────────────────────────────
@@ -191,40 +240,40 @@ model NewsCategory {
 }
 
 model NewsPost {
-  id            String         @id @default(cuid())
-  slug          String         @unique
+  id            String        @id @default(cuid())
+  slug          String        @unique
   title         String
-  date          DateTime       @default(now())
-  excerpt       String         @default("")
-  body          String         @default("")
-  coverImage    String         @default("")
-  externalUrl   String         @default("")
-  venue         String         @default("")
-  presentations Json           @default("[]") // [{ title, presenters, date, format }]
-  pinned        Boolean        @default(false)
-  published     Boolean        @default(true)
+  date          DateTime      @default(now())
+  excerpt       String        @default("")
+  body          String        @default("")
+  coverImage    String        @default("")
+  externalUrl   String        @default("")
+  venue         String        @default("")
+  presentations Json          @default("[]") // [{ title, presenters, date, format }]
+  pinned        Boolean       @default(false)
+  published     Boolean       @default(true)
   categoryId    String?
-  category      NewsCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  category      NewsCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([date])
 }
 
 model Event {
-  id              String   @id @default(cuid())
-  slug            String   @unique
+  id              String    @id @default(cuid())
+  slug            String    @unique
   title           String
   startDate       DateTime
   endDate         DateTime?
-  location        String   @default("")
-  summary         String   @default("")
-  body            String   @default("")
-  coverImage      String   @default("")
-  registrationUrl String   @default("")
-  published       Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  location        String    @default("")
+  summary         String    @default("")
+  body            String    @default("")
+  coverImage      String    @default("")
+  registrationUrl String    @default("")
+  published       Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([startDate])
 }
@@ -301,19 +350,19 @@ model GalleryImage {
 }
 
 model Opportunity {
-  id         String    @id @default(cuid())
-  slug       String    @unique
-  title      String
-  type       String    @default("Graduate Student")
-  summary    String    @default("")
-  body       String    @default("")
-  deadline   DateTime?
-  applyUrl   String    @default("")
-  isOpen     Boolean   @default(true)
-  order      Int       @default(0)
-  published  Boolean   @default(true)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  title     String
+  type      String    @default("Graduate Student")
+  summary   String    @default("")
+  body      String    @default("")
+  deadline  DateTime?
+  applyUrl  String    @default("")
+  isOpen    Boolean   @default(true)
+  order     Int       @default(0)
+  published Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Partner {
@@ -364,22 +413,28 @@ enum Role {
 }
 
 model User {
-  id                 String     @id @default(cuid())
+  id                 String        @id @default(cuid())
   name               String
-  email              String     @unique
-  passwordHash       String     @default("") // empty for passwordless (OTP-only) members
-  role               Role       @default(MEMBER)
-  active             Boolean    @default(true)
-  mustChangePassword Boolean    @default(false)
-  failedAttempts     Int        @default(0)
+  email              String        @unique
+  passwordHash       String        @default("") // empty for passwordless (OTP-only) members
+  role               Role          @default(MEMBER)
+  active             Boolean       @default(true)
+  mustChangePassword Boolean       @default(false)
+  failedAttempts     Int           @default(0)
   lockedUntil        DateTime?
   lastLoginAt        DateTime?
-  memberId           String?    @unique
-  member             Member?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  memberId           String?       @unique
+  member             Member?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
   sessions           Session[]
   auditLogs          AuditLog[]
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  approvals          Member[]      @relation("MemberApproval")
+  messages           ChatMessage[]
+  chatRead           ChatRead?
+  pushTokens         PushToken[]
+  notifyChat         Boolean       @default(true)
+  notifyNotices      Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 }
 
 // One-time e-mail codes for member sign-up / sign-in and admin 2-step login.
@@ -387,9 +442,11 @@ model User {
 model OtpChallenge {
   id         String    @id @default(cuid())
   email      String
-  purpose    String    // signup | login | admin-2fa
+  purpose    String // signup | login | admin-2fa
   codeHash   String
   name       String    @default("")
+  /** Pending sign-up application (already validated, password pre-hashed). */
+  payload    Json      @default("{}")
   userId     String?
   attempts   Int       @default(0)
   expiresAt  DateTime
@@ -427,9 +484,109 @@ model AuditLog {
   @@index([createdAt])
 }
 
+// ─── Notices, chat, attendance, push ─────────────────────────────────────────
+
+enum NoticeAudience {
+  PUBLIC
+  MEMBERS
+}
+
+model Notice {
+  id            String         @id @default(cuid())
+  slug          String         @unique
+  title         String
+  body          String         @default("")
+  level         String         @default("info") // info | important | urgent
+  audience      NoticeAudience @default(PUBLIC)
+  attachmentUrl String         @default("")
+  pinned        Boolean        @default(false)
+  publishAt     DateTime       @default(now())
+  expiresAt     DateTime?
+  published     Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([publishAt])
+}
+
+enum ChatKind {
+  TEXT
+  IMAGE
+  FILE
+  AUDIO
+  SYSTEM
+}
+
+model ChatMessage {
+  id          String        @id @default(cuid())
+  authorId    String?
+  author      User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  kind        ChatKind      @default(TEXT)
+  body        String        @default("")
+  fileUrl     String        @default("")
+  fileName    String        @default("")
+  fileSize    Int           @default(0)
+  mimeType    String        @default("")
+  durationSec Int           @default(0)
+  width       Int           @default(0)
+  height      Int           @default(0)
+  replyToId   String?
+  replyTo     ChatMessage?  @relation("ChatReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     ChatMessage[] @relation("ChatReply")
+  editedAt    DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@index([createdAt])
+}
+
+model ChatRead {
+  userId     String   @id
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastSeenAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Attendance {
+  id              String    @id @default(cuid())
+  memberId        String
+  member          Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  day             String // yyyy-mm-dd in lab local time, for the daily unique constraint
+  checkInAt       DateTime  @default(now())
+  checkOutAt      DateTime?
+  checkInLat      Float?
+  checkInLng      Float?
+  checkInAccuracy Float?
+  checkOutLat     Float?
+  checkOutLng     Float?
+  distanceMeters  Int?
+  withinFence     Boolean   @default(false)
+  note            String    @default("")
+  source          String    @default("WEB") // WEB | APP
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([memberId, day])
+  @@index([checkInAt])
+}
+
+model PushToken {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform   String   @default("WEB") // WEB | ANDROID
+  deviceName String   @default("")
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
 // Fixed-window rate limiter shared by login and contact form.
 model RateLimit {
-  key       String   @id
-  count     Int      @default(0)
-  resetAt   DateTime
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
 }

@@ -4,11 +4,24 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { audit, createSession, destroySession, getCurrentUser } from "@/lib/auth";
+import {
+  audit,
+  createSession,
+  destroySession,
+  getCurrentUser,
+  hashPassword,
+  isStaff,
+  LOCKOUT_MS,
+  MAX_FAILED_LOGINS,
+  passwordPolicyError,
+  verifyPassword,
+} from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { clientIpHash } from "@/lib/request";
 import { clearChallenge, startChallenge, verifyChallenge } from "@/lib/otp";
-import { getResource } from "@/lib/admin/resources";
+import { getSettings } from "@/lib/settings";
+import { memberEditableFields } from "@/lib/member-fields";
+import { createPendingMember, memberAccess, validateApplication } from "@/lib/member-account";
 import { toPrismaData, validateFields, type FieldErrors } from "@/lib/admin/resource-server";
 
 export type MemberAuthState =
@@ -36,35 +49,105 @@ async function throttle(email: string) {
   return byIp && byEmail;
 }
 
-export async function requestSignupCode(_prev: MemberAuthState, formData: FormData): Promise<MemberAuthState> {
-  const name = nameSchema.safeParse(formData.get("name") ?? "");
-  const email = emailSchema.safeParse(String(formData.get("email") ?? "").trim().toLowerCase());
-  if (!name.success) return { step: "email", error: name.error.issues[0].message };
-  if (!email.success) return { step: "email", error: email.error.issues[0].message };
-  if (String(formData.get("website") ?? "")) {
-    return { step: "otp", email: email.data, purpose: "signup", sentAt: new Date().toISOString() };
-  }
-  if (!(await throttle(email.data))) return { step: "email", error: "Too many requests. Please try again later." };
+// ─── Sign-up (application + email verification) ──────────────────────────────
 
-  const existing = await db.user.findUnique({ where: { email: email.data } });
+export type ApplyState = {
+  ok?: boolean;
+  email?: string;
+  sentAt?: string;
+  error?: string;
+  fieldErrors?: FieldErrors;
+};
+
+const accountSchema = z.object({
+  name: nameSchema,
+  email: emailSchema,
+  password: z.string().max(128),
+});
+
+/**
+ * Step 1 of sign-up: validate the whole application, keep it (with the password
+ * already hashed) on the e-mail challenge, and send the verification code. The
+ * account is only created once the code is confirmed.
+ */
+export async function startApplication(input: {
+  account: { name: string; email: string; password: string };
+  profile: Record<string, unknown>;
+  website?: string;
+}): Promise<ApplyState> {
+  const settings = await getSettings();
+  if (!settings.memberSignupEnabled) return { error: "Member sign-up is currently closed." };
+  if (input?.website) return { ok: true, email: input?.account?.email, sentAt: new Date().toISOString() };
+
+  const account = accountSchema.safeParse({
+    name: input?.account?.name ?? "",
+    email: String(input?.account?.email ?? "").trim().toLowerCase(),
+    password: input?.account?.password ?? "",
+  });
+  if (!account.success) {
+    const issue = account.error.issues[0];
+    return { error: issue.message, fieldErrors: { [String(issue.path[0] ?? "email")]: issue.message } };
+  }
+  const policy = passwordPolicyError(account.data.password);
+  if (policy) return { error: policy, fieldErrors: { password: policy } };
+
+  const application = validateApplication(input?.profile ?? {});
+  if (!application.ok) {
+    return { error: "Please fix the highlighted fields.", fieldErrors: application.fieldErrors };
+  }
+
+  const { name, email, password } = account.data;
+  if (!(await throttle(email))) return { error: "Too many requests. Please try again later." };
+
+  const existing = await db.user.findUnique({ where: { email }, select: { id: true, role: true } });
+  if (existing) {
+    return {
+      error: isStaff(existing.role)
+        ? "This email belongs to a staff account. Please sign in at /admin instead."
+        : "An account with this email already exists — please sign in instead.",
+      fieldErrors: { email: "Already registered" },
+    };
+  }
+
   try {
-    if (!existing) {
-      await startChallenge({ email: email.data, purpose: "signup", name: name.data });
-      console.info("otp: signup code sent");
-    } else if (existing.active && existing.role === "MEMBER") {
-      // Already registered: send a sign-in code instead (does not reveal the account exists).
-      await startChallenge({ email: email.data, purpose: "login", userId: existing.id });
-      console.info("otp: existing member, login code sent");
-    } else {
-      // Staff accounts are never signed in by email code alone; respond identically.
-      console.info("otp: skipped (staff or disabled account)");
-    }
+    await startChallenge({
+      email,
+      purpose: "signup",
+      name,
+      payload: { passwordHash: await hashPassword(password), profile: application.values },
+    });
+    console.info("otp: signup code sent");
   } catch (err) {
     console.error("otp: send failed", err instanceof Error ? err.message : err);
-    return { step: "email", error: "We could not send the email. Please try again later." };
+    return { error: "We could not send the verification email. Please try again later." };
   }
-  return { step: "otp", email: email.data, purpose: "signup", sentAt: new Date().toISOString() };
+  return { ok: true, email, sentAt: new Date().toISOString() };
 }
+
+/** Resend the code for an application that is already waiting for verification. */
+export async function resendApplicationCode(email: string): Promise<ApplyState> {
+  const parsed = emailSchema.safeParse(String(email ?? "").trim().toLowerCase());
+  if (!parsed.success) return { error: "Invalid email address." };
+  const challenge = await db.otpChallenge.findFirst({
+    where: { email: parsed.data, purpose: "signup", consumedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!challenge) return { error: "This sign-up has expired. Please start again." };
+  if (!(await throttle(parsed.data))) return { error: "Too many requests. Please try again later." };
+  try {
+    await startChallenge({
+      email: challenge.email,
+      purpose: "signup",
+      name: challenge.name,
+      payload: challenge.payload as Record<string, unknown>,
+    });
+  } catch {
+    return { error: "We could not send the email. Please try again later." };
+  }
+  return { ok: true, email: parsed.data, sentAt: new Date().toISOString() };
+}
+
+// ─── Sign-in ─────────────────────────────────────────────────────────────────
 
 export async function requestLoginCode(_prev: MemberAuthState, formData: FormData): Promise<MemberAuthState> {
   const email = emailSchema.safeParse(String(formData.get("email") ?? "").trim().toLowerCase());
@@ -87,6 +170,50 @@ export async function requestLoginCode(_prev: MemberAuthState, formData: FormDat
   return { step: "otp", email: email.data, purpose: "login", sentAt: new Date().toISOString() };
 }
 
+const GENERIC_LOGIN_ERROR = "Invalid email or password.";
+
+export async function loginWithPassword(_prev: MemberAuthState, formData: FormData): Promise<MemberAuthState> {
+  const parsed = z
+    .object({ email: emailSchema, password: z.string().min(1).max(128) })
+    .safeParse({
+      email: String(formData.get("email") ?? "").trim().toLowerCase(),
+      password: String(formData.get("password") ?? ""),
+    });
+  if (!parsed.success) return { step: "email", error: GENERIC_LOGIN_ERROR };
+
+  const ip = await clientIpHash();
+  if (!(await rateLimit(`member-login:${ip}`, 20, 15 * 60 * 1000))) {
+    return { step: "email", error: "Too many attempts. Please wait a few minutes and try again." };
+  }
+
+  const user = await db.user.findUnique({ where: { email: parsed.data.email } });
+  if (!user || !user.active || user.role !== "MEMBER" || !user.passwordHash) {
+    await verifyPassword(parsed.data.password, "$2b$12$.DF0FLcm4qFWhwa8k/GOlOzTBYVV1eDH6cjO2NCOGiwCr24uyILYS");
+    return { step: "email", error: GENERIC_LOGIN_ERROR };
+  }
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    return { step: "email", error: "This account is temporarily locked after repeated failed sign-ins. Try again later." };
+  }
+  if (!(await verifyPassword(parsed.data.password, user.passwordHash))) {
+    const failed = user.failedAttempts + 1;
+    await db.user.update({
+      where: { id: user.id },
+      data: {
+        failedAttempts: failed >= MAX_FAILED_LOGINS ? 0 : failed,
+        lockedUntil: failed >= MAX_FAILED_LOGINS ? new Date(Date.now() + LOCKOUT_MS) : null,
+      },
+    });
+    return { step: "email", error: GENERIC_LOGIN_ERROR };
+  }
+
+  await db.user.update({
+    where: { id: user.id },
+    data: { failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
+  });
+  await createSession(user.id);
+  redirect("/account");
+}
+
 export async function verifyMemberCode(prev: MemberAuthState, formData: FormData): Promise<MemberAuthState> {
   const ip = await clientIpHash();
   if (!(await rateLimit(`otp-verify:${ip}`, 20, 15 * 60 * 1000))) {
@@ -103,12 +230,19 @@ export async function verifyMemberCode(prev: MemberAuthState, formData: FormData
       if (existing.role !== "MEMBER" || !existing.active) return { step: "email", error: "Please sign in instead." };
       userId = existing.id;
     } else {
-      // Link to a published member profile with the same email, if one is unclaimed.
-      const profile = await db.member.findFirst({ where: { email: { equals: c.email, mode: "insensitive" }, account: null } });
+      const payload = (c.payload ?? {}) as { passwordHash?: string; profile?: Record<string, unknown> };
       const user = await db.user.create({
-        data: { email: c.email, name: c.name || c.email.split("@")[0], role: "MEMBER", memberId: profile?.id },
+        data: {
+          email: c.email,
+          name: c.name || c.email.split("@")[0],
+          role: "MEMBER",
+          passwordHash: payload.passwordHash ?? "",
+        },
       });
       userId = user.id;
+      if (payload.profile) {
+        await createPendingMember(user, payload.profile);
+      }
       await audit(user.id, "sign up", "Member account", user.id, c.email);
     }
   } else {
@@ -132,33 +266,100 @@ export async function memberLogoutAction() {
   redirect("/account/login");
 }
 
-// ─── Self-service profile ────────────────────────────────────────────────────
+// ─── Profile & application for signed-in members ─────────────────────────────
 
-const SELF_EDITABLE = ["photo", "phone", "bio", "researchInterests", "education", "links"];
+/** A member who signed in with Google still has to submit the application. */
+export async function submitApplication(
+  profile: Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string; fieldErrors?: FieldErrors }> {
+  const me = await getCurrentUser();
+  if (!me || isStaff(me.role)) return { ok: false, error: "You are not signed in as a member." };
+  const account = await db.user.findUnique({ where: { id: me.id }, select: { memberId: true, name: true, email: true } });
+  if (account?.memberId) return { ok: false, error: "Your profile has already been submitted." };
+
+  const application = validateApplication(profile ?? {});
+  if (!application.ok) return { ok: false, error: "Please fix the highlighted fields.", fieldErrors: application.fieldErrors };
+
+  await createPendingMember({ id: me.id, name: account?.name ?? me.name, email: account?.email ?? me.email }, application.values);
+  await audit(me.id, "submit application", "Member", me.id);
+  revalidatePath("/account");
+  return { ok: true };
+}
+
+/** After a rejection the member can fix their details and ask for another look. */
+export async function resubmitApplication(): Promise<{ ok: boolean; error?: string }> {
+  const me = await getCurrentUser();
+  if (!me || isStaff(me.role)) return { ok: false, error: "You are not signed in as a member." };
+  const access = await memberAccess(me.id);
+  if (!access.memberId) return { ok: false, error: "No profile to submit." };
+  if (access.status !== "REJECTED") return { ok: false, error: "This profile is not awaiting changes." };
+
+  await db.member.update({
+    where: { id: access.memberId },
+    data: { status: "PENDING", reviewNote: "", appliedAt: new Date() },
+  });
+  await audit(me.id, "resubmit application", "Member", access.memberId);
+  revalidatePath("/account");
+  return { ok: true };
+}
 
 export async function updateOwnProfile(
   input: Record<string, unknown>,
 ): Promise<{ ok: boolean; error?: string; fieldErrors?: FieldErrors }> {
   const me = await getCurrentUser();
   if (!me) return { ok: false, error: "You are not signed in." };
-  const account = await db.user.findUnique({ where: { id: me.id }, select: { memberId: true, active: true } });
-  if (!account?.active || !account.memberId) return { ok: false, error: "Your account is not linked to a member profile yet." };
+  const access = await memberAccess(me.id);
+  if (!access.memberId) return { ok: false, error: "Your account is not linked to a member profile yet." };
+  if (!access.active) return { ok: false, error: "This account is disabled." };
 
-  const fields = getResource("members")!.fields.filter((f) => SELF_EDITABLE.includes(f.name));
-  const { values, errors } = validateFields(fields, input ?? {});
+  const { values, errors } = validateFields(memberEditableFields, input ?? {});
   if (Object.keys(errors).length) return { ok: false, error: "Please fix the highlighted fields.", fieldErrors: errors };
 
-  await db.member.update({ where: { id: account.memberId }, data: toPrismaData(fields, values, "update") });
-  await audit(me.id, "update own profile", "Member", account.memberId);
+  await db.member.update({
+    where: { id: access.memberId },
+    data: toPrismaData(memberEditableFields, values, "update"),
+  });
+  await audit(me.id, "update own profile", "Member", access.memberId);
   revalidatePath("/", "layout");
   return { ok: true };
 }
 
-export async function updateAccountName(input: { name: string }): Promise<{ ok: boolean; error?: string }> {
+const passwordSchema = z.object({
+  current: z.string().max(128).default(""),
+  next: z.string().max(128),
+  confirm: z.string().max(128),
+});
+
+export async function changeOwnPassword(input: unknown): Promise<{ ok: boolean; error?: string }> {
   const me = await getCurrentUser();
   if (!me) return { ok: false, error: "You are not signed in." };
-  const name = nameSchema.safeParse(input?.name ?? "");
-  if (!name.success) return { ok: false, error: name.error.issues[0].message };
-  await db.user.update({ where: { id: me.id }, data: { name: name.data } });
+  const parsed = passwordSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Please fill in every field." };
+  const { current, next, confirm } = parsed.data;
+  if (next !== confirm) return { ok: false, error: "New passwords do not match." };
+  const policy = passwordPolicyError(next);
+  if (policy) return { ok: false, error: policy };
+
+  const user = await db.user.findUniqueOrThrow({ where: { id: me.id } });
+  // Accounts created through Google have no password yet, so there is nothing
+  // to confirm the first time they set one.
+  if (user.passwordHash && !(await verifyPassword(current, user.passwordHash))) {
+    return { ok: false, error: "Current password is incorrect." };
+  }
+  await db.user.update({ where: { id: me.id }, data: { passwordHash: await hashPassword(next) } });
+  await audit(me.id, "change password", "Member account", me.id);
+  return { ok: true };
+}
+
+export async function updateNotificationPrefs(input: { notifyChat?: boolean; notifyNotices?: boolean }) {
+  const me = await getCurrentUser();
+  if (!me) return { ok: false, error: "You are not signed in." };
+  await db.user.update({
+    where: { id: me.id },
+    data: {
+      notifyChat: Boolean(input?.notifyChat),
+      notifyNotices: Boolean(input?.notifyNotices),
+    },
+  });
   return { ok: true };
 }

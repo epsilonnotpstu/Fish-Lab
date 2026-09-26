@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Mail, Phone } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import { db } from "@/lib/db";
 import { asArray, type LinkItem } from "@/lib/settings";
 import { isSafeHref, stripHtmlSafe } from "@/lib/format";
@@ -12,8 +12,36 @@ import { SocialIcon, detectPlatform } from "@/components/site/social-icon";
 
 async function load(slug: string) {
   return db.member.findFirst({
-    where: { slug, published: true },
-    include: { category: true, researchAreas: { where: { published: true }, orderBy: { order: "asc" } } },
+    where: { slug, published: true, status: "APPROVED" },
+    // Only public columns — IDs, phone, address and similar stay private.
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      position: true,
+      photo: true,
+      email: true,
+      bio: true,
+      researchInterests: true,
+      education: true,
+      links: true,
+      skills: true,
+      program: true,
+      session: true,
+      semester: true,
+      faculty: true,
+      department: true,
+      isAlumni: true,
+      currentPosition: true,
+      category: { select: { name: true } },
+      supervisor: { select: { name: true, slug: true, published: true, status: true } },
+      supervisees: {
+        where: { published: true, status: "APPROVED" },
+        select: { name: true, slug: true },
+        orderBy: { order: "asc" as const },
+      },
+      researchAreas: { where: { published: true }, orderBy: { order: "asc" as const } },
+    },
   });
 }
 
@@ -31,6 +59,14 @@ export default async function MemberPage({ params }: { params: Promise<{ slug: s
   const m = await load((await params).slug);
   if (!m) notFound();
   const links = asArray<LinkItem>(m.links).filter((l) => l.url && isSafeHref(l.url));
+  const skills = asArray<string>(m.skills).filter(Boolean);
+  const facts = [
+    ["Program", m.program],
+    ["Session", m.session],
+    ["Semester", m.semester],
+    ["Department", m.department],
+    ["Faculty", m.faculty],
+  ].filter(([, v]) => Boolean(v)) as [string, string][];
   const interests = m.researchInterests.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
 
   return (
@@ -52,9 +88,7 @@ export default async function MemberPage({ params }: { params: Promise<{ slug: s
                     <Mail className="size-4 shrink-0 text-brand-accent" /> {m.email}
                   </a>
                 )}
-                {m.phone && (
-                  <p className="flex items-center gap-3"><Phone className="size-4 shrink-0 text-brand-accent" /> {m.phone}</p>
-                )}
+    
                 {links.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2">
                     {links.map((l) => (
@@ -71,11 +105,35 @@ export default async function MemberPage({ params }: { params: Promise<{ slug: s
                     ))}
                   </div>
                 )}
-                {!m.email && !m.phone && links.length === 0 && <p className="text-muted-foreground">No contact details listed.</p>}
+                {!m.email && links.length === 0 && <p className="text-muted-foreground">No contact details listed.</p>}
               </div>
             </div>
           </aside>
           <div className="space-y-12 lg:col-span-8">
+            {(facts.length > 0 || m.supervisor) && (
+              <dl className="grid gap-x-8 gap-y-4 rounded-3xl border bg-card p-6 sm:grid-cols-2">
+                {facts.map(([k, v]) => (
+                  <div key={k}>
+                    <dt className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">{k}</dt>
+                    <dd className="mt-1 font-medium">{v}</dd>
+                  </div>
+                ))}
+                {m.supervisor && (
+                  <div>
+                    <dt className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Supervisor</dt>
+                    <dd className="mt-1 font-medium">
+                      {m.supervisor.published && m.supervisor.status === "APPROVED" ? (
+                        <Link href={`/members/${m.supervisor.slug}`} className="hover:text-brand dark:hover:text-brand-accent">
+                          {m.supervisor.name}
+                        </Link>
+                      ) : (
+                        m.supervisor.name
+                      )}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            )}
             {m.bio ? (
               <div>
                 <h2 className="mb-4 text-2xl font-bold">Biography</h2>
@@ -108,6 +166,28 @@ export default async function MemberPage({ params }: { params: Promise<{ slug: s
               <div className="rounded-3xl border bg-card p-6">
                 <p className="text-sm text-muted-foreground">Current position</p>
                 <p className="mt-1 text-lg font-semibold">{m.currentPosition}</p>
+              </div>
+            )}
+            {skills.length > 0 && (
+              <div>
+                <h2 className="mb-4 text-2xl font-bold">Skills & techniques</h2>
+                <div className="flex flex-wrap gap-2">
+                  {skills.map((s) => (
+                    <span key={s} className="rounded-full border px-4 py-2 text-sm font-medium">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {m.supervisees.length > 0 && (
+              <div>
+                <h2 className="mb-4 text-2xl font-bold">Students supervised</h2>
+                <div className="flex flex-wrap gap-2">
+                  {m.supervisees.map((s) => (
+                    <Link key={s.slug} href={`/members/${s.slug}`} className="rounded-full border px-4 py-2 text-sm font-medium transition hover:border-brand-accent">
+                      {s.name}
+                    </Link>
+                  ))}
+                </div>
               </div>
             )}
             {m.researchAreas.length > 0 && (

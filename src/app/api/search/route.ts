@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const contains = { contains: q, mode: "insensitive" as const };
   const [research, members, news, pubs, pages, projects] = await Promise.all([
     db.researchArea.findMany({ where: { published: true, OR: [{ title: contains }, { summary: contains }] }, take: 5 }),
-    db.member.findMany({ where: { published: true, OR: [{ name: contains }, { position: contains }, { researchInterests: contains }] }, take: 5 }),
+    db.member.findMany({ where: { published: true, status: "APPROVED", OR: [{ name: contains }, { position: contains }, { researchInterests: contains }] }, take: 5 }),
     db.newsPost.findMany({ where: { published: true, OR: [{ title: contains }, { excerpt: contains }] }, orderBy: { date: "desc" }, take: 5 }),
     db.publication.findMany({ where: { published: true, OR: [{ title: contains }, { authors: contains }, { venue: contains }] }, orderBy: { year: "desc" }, take: 5 }),
     db.page.findMany({ where: { published: true, title: contains }, take: 3 }),
