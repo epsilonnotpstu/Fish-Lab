@@ -38,6 +38,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         { href: "/admin", label: "Dashboard", icon: "LayoutDashboard" },
         { href: "/admin/messages", label: "Messages", icon: "Inbox", badge: unread },
         { href: "/admin/approvals", label: "Approvals", icon: "UserRoundCheck", badge: pending },
+        { href: "/admin/chat", label: "Lab group", icon: "MessagesSquare" },
+        { href: "/admin/attendance", label: "Attendance", icon: "CalendarCheck" },
       ],
     },
     { label: "Content", items: byGroup("Content") },

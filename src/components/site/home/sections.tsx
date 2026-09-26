@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import type { HomeSection, Member, NewsCategory, NewsPost, Partner, Publication, ResearchArea } from "@prisma/client";
+import type { HomeSection, Member, NewsCategory, NewsPost, Notice, Partner, Publication, ResearchArea } from "@prisma/client";
 import { asArray, asObject } from "@/lib/settings";
 import { isSafeHref } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ import { Reveal } from "../reveal";
 import { RichText } from "../rich-text";
 import { SmartImage } from "../smart-image";
 import { MemberCard, NewsCard, PublicationItem, ResearchCard } from "../cards";
+import { NoticeCard } from "../notice-card";
 
 export type SectionContent = {
   eyebrow?: string;
@@ -223,6 +224,25 @@ export function PartnersSection({ section, partners }: { section: HomeSection; p
               <div key={p.id + i} className={cls} aria-hidden={i >= partners.length}>{inner}</div>
             );
           })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function NoticesSection({ section, notices }: { section: HomeSection; notices: Notice[] }) {
+  const c = content(section);
+  if (!notices.length) return null;
+  return (
+    <section className="section">
+      <div className="container-page">
+        <SectionHeading eyebrow={c.eyebrow} title={section.title} subtitle={section.subtitle} action={primaryAction(c)} />
+        <div className="grid gap-5 lg:grid-cols-2">
+          {notices.map((n, i) => (
+            <Reveal key={n.id} delay={(i % 2) * 0.08}>
+              <NoticeCard notice={n} compact />
+            </Reveal>
+          ))}
         </div>
       </div>
     </section>

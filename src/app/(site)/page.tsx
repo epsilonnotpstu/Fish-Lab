@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { asArray } from "@/lib/settings";
 import { Hero, type HeroSlide } from "@/components/site/home/hero";
 import { Stats } from "@/components/site/home/stats";
+import { listNotices } from "@/lib/notices";
 import {
   AboutSection,
   content,
@@ -9,6 +10,7 @@ import {
   CustomSection,
   MembersSection,
   NewsSection,
+  NoticesSection,
   PartnersSection,
   primaryAction,
   PublicationsSection,
@@ -40,7 +42,7 @@ export default async function HomePage() {
   const membersSection = sections.find((s) => s.type === "members");
   const memberGroup = membersSection ? content(membersSection).memberGroup : undefined;
 
-  const [areas, posts, pubs, members, partners, counts] = await Promise.all([
+  const [areas, posts, pubs, members, partners, counts, notices] = await Promise.all([
     has("research") ? db.researchArea.findMany({ where: { published: true }, orderBy: { order: "asc" }, take: limitOf("research", 6) }) : [],
     has("news")
       ? db.newsPost.findMany({ where: { published: true }, orderBy: [{ pinned: "desc" }, { date: "desc" }], take: limitOf("news", 4), include: { category: true } })
@@ -57,6 +59,7 @@ export default async function HomePage() {
       : [],
     has("partners") ? db.partner.findMany({ where: { published: true }, orderBy: { order: "asc" } }) : [],
     has("stats") ? liveCounts() : ({} as Record<string, number>),
+    has("notices") ? listNotices("PUBLIC", limitOf("notices", 2)) : [],
   ]);
 
   return (
@@ -104,6 +107,9 @@ export default async function HomePage() {
             break;
           case "members":
             node = <MembersSection section={section} members={members} />;
+            break;
+          case "notices":
+            node = <NoticesSection section={section} notices={notices} />;
             break;
           case "partners":
             node = <PartnersSection section={section} partners={partners} />;

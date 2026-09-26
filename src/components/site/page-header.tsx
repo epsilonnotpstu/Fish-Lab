@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { SmartImage } from "./smart-image";
 
 export function PageHeader({
@@ -8,15 +9,23 @@ export function PageHeader({
   eyebrow,
   image,
   crumbs = [],
+  compact = false,
 }: {
   title: string;
   subtitle?: string;
   eyebrow?: string;
   image?: string;
   crumbs?: { label: string; href?: string }[];
+  /** Tighter hero for tool-like pages (chat, attendance). */
+  compact?: boolean;
 }) {
   return (
-    <section className="bg-ocean relative isolate overflow-hidden pt-36 pb-20 text-white sm:pt-44 sm:pb-28">
+    <section
+      className={cn(
+        "bg-ocean relative isolate overflow-hidden text-white",
+        compact ? "pt-28 pb-12 sm:pt-32 sm:pb-14" : "pt-36 pb-20 sm:pt-44 sm:pb-28",
+      )}
+    >
       {image && (
         <SmartImage src={image} alt="" fill loading="eager" sizes="100vw" className="-z-20 object-cover opacity-25 mix-blend-luminosity" />
       )}
@@ -36,7 +45,7 @@ export function PageHeader({
           ))}
         </nav>
         {eyebrow && <p className="eyebrow mb-4">{eyebrow}</p>}
-        <h1 className="max-w-4xl text-4xl font-bold sm:text-5xl lg:text-6xl lg:leading-[1.05]">{title}</h1>
+        <h1 className={cn("max-w-4xl font-bold", compact ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl lg:text-6xl lg:leading-[1.05]")}>{title}</h1>
         {subtitle && <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/75">{subtitle}</p>}
       </div>
       <Wave />

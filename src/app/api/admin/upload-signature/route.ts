@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isStaff } from "@/lib/auth";
+import { chatAccess } from "@/lib/chat";
 import { cloudinaryConfigured, signUpload } from "@/lib/cloudinary";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const limit = user.role === "MEMBER" ? 20 : 120;
+  const limit = isStaff(user.role) ? 200 : 60;
   if (!(await rateLimit(`upload:${user.id}`, limit, 60 * 60 * 1000))) {
     return NextResponse.json({ error: "Upload limit reached, try again later." }, { status: 429 });
   }
@@ -26,7 +27,16 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => ({}))) as { kind?: string };
-  // Members may only upload images (their profile photo); staff can upload files too.
-  const kind = body.kind === "file" && user.role !== "MEMBER" ? "file" : "image";
+  // Chat attachments are open to anyone who may post in the group; plain file
+  // uploads stay with staff, and everyone else gets the image-only rules.
+  let kind: "image" | "file" | "chat" = "image";
+  if (body.kind === "chat") {
+    if (!(await chatAccess())) {
+      return NextResponse.json({ error: "You cannot post in the lab group." }, { status: 403 });
+    }
+    kind = "chat";
+  } else if (body.kind === "file" && isStaff(user.role)) {
+    kind = "file";
+  }
   return NextResponse.json(signUpload(kind), { headers: { "Cache-Control": "no-store" } });
 }
