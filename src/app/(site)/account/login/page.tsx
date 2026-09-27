@@ -18,7 +18,7 @@ const NOTICES: Record<string, string> = {
   rate: "Too many attempts. Please wait a few minutes and try again.",
 };
 
-export const metadata: Metadata = { title: "Member sign in", robots: { index: false } };
+export const metadata: Metadata = { title: "Sign in", robots: { index: false } };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -27,7 +27,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
   if (user) redirect(isStaff(user.role) ? "/admin" : "/account");
   return (
     <>
-      <PageHeader eyebrow="Member portal" title="Member sign in" subtitle="No password needed — we will email you a one-time code." crumbs={[{ label: "Member portal" }]} />
+      <PageHeader eyebrow="Member portal" title="Sign in" subtitle="Members and administrators sign in with their email and password — or ask for a one-time code." crumbs={[{ label: "Member portal" }]} />
       <section className="section pt-12">
         <div className="container-page max-w-md">
           <div className="rounded-3xl border bg-card p-6 shadow-xl shadow-brand/5 sm:p-8">

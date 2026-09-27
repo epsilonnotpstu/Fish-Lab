@@ -26,7 +26,8 @@
     },
     "StatusBar": {
       "style": "DARK",
-      "backgroundColor": "#0b3b5c"
+      "backgroundColor": "#0b3b5c",
+      "overlaysWebView": false
     }
   },
   "appendUserAgent": "AALabApp/1.0"
