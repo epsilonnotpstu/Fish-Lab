@@ -8,6 +8,15 @@
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+
+/** Same rule as the app: at least 10 characters with upper, lower and a digit. */
+function passwordPolicyError(password: string) {
+  if (password.length < 10) return "at least 10 characters";
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+    return "needs upper-case, lower-case and a number";
+  }
+  return null;
+}
 import photos from "./photos.json";
 
 const db = new PrismaClient();
@@ -73,7 +82,29 @@ async function seedAdmin() {
     console.warn("! SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD not set — skipping admin user.");
     return;
   }
-  if (await db.user.findUnique({ where: { email } })) {
+  const existing = await db.user.findUnique({ where: { email } });
+  if (existing) {
+    // Setting SEED_ADMIN_RESET=true lets an owner rotate the password (and clear
+    // a lockout) from the hosting dashboard without database access.
+    if (process.env.SEED_ADMIN_RESET === "true") {
+      const policy = passwordPolicyError(password);
+      if (policy) {
+        console.warn(`! SEED_ADMIN_PASSWORD rejected: ${policy}`);
+        return;
+      }
+      await db.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash: await bcrypt.hash(password, 12),
+          failedAttempts: 0,
+          lockedUntil: null,
+          active: true,
+          mustChangePassword: false,
+        },
+      });
+      console.log(`✓ Reset the password for ${email} (remove SEED_ADMIN_RESET afterwards)`);
+      return;
+    }
     console.log(`• Admin ${email} already exists`);
     return;
   }
