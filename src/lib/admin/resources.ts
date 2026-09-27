@@ -102,6 +102,7 @@ export const HOME_SECTION_TYPES = [
   "members",
   "partners",
   "cta",
+  "inauguration",
   "custom",
 ] as const;
 
@@ -820,6 +821,16 @@ export const settingsFields: Field[] = [
   { name: "appApkUrl", label: "Android app (APK) link", type: "url", section: "Member area", half: true },
   { name: "appVersion", label: "App version", type: "text", section: "Member area", half: true },
   { name: "memberSignupNote", label: "Note on the sign-up page", type: "textarea", section: "Member area" },
+
+  { name: "inaugurationEnabled", label: "Ceremony mode (website not yet inaugurated)", type: "boolean", section: "Inauguration", help: "While this is on, visitors see the ceremony screen instead of the website." },
+  { name: "ceremonyTitle", label: "Ceremony heading", type: "text", section: "Inauguration" },
+  { name: "ceremonySubtitle", label: "Ceremony sub-heading", type: "text", section: "Inauguration" },
+  { name: "ceremonyGuestName", label: "Chief guest", type: "text", section: "Inauguration", half: true },
+  { name: "ceremonyGuestTitle", label: "Designation", type: "text", section: "Inauguration", half: true },
+  { name: "ceremonyDate", label: "Ceremony date (as shown)", type: "text", section: "Inauguration", half: true, placeholder: "27 September 2026" },
+  { name: "ceremonyButtonLabel", label: "Button label", type: "text", section: "Inauguration", half: true },
+  { name: "ceremonyNote", label: "Small note under the button", type: "text", section: "Inauguration" },
+  { name: "showInaugurationPlaque", label: "Show the plaque on the homepage", type: "boolean", section: "Inauguration" },
 
   { name: "showNotices", label: "Notices page", type: "boolean", section: "Features", half: true },
   { name: "showPublications", label: "Publications page", type: "boolean", section: "Features", half: true },

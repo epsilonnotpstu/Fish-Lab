@@ -117,6 +117,7 @@ export function Footer({
           <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span>{[settings.department, settings.faculty, settings.university].filter(Boolean).join(" · ")}</span>
             <Link href="/account" className="text-white/70 hover:text-white">Member portal</Link>
+            <Link href="/app" className="text-white/70 hover:text-white">Android app</Link>
           </p>
         </div>
       </div>

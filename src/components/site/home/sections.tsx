@@ -288,6 +288,52 @@ export function CtaSection({ section }: { section: HomeSection }) {
   );
 }
 
+export function InaugurationSection({
+  section,
+  guestName,
+  guestTitle,
+  date,
+  labName,
+}: {
+  section: HomeSection;
+  guestName: string;
+  guestTitle: string;
+  date: string;
+  labName: string;
+}) {
+  const c = content(section);
+  if (!guestName && !date) return null;
+  return (
+    <section className="section">
+      <div className="container-page">
+        <Reveal>
+          <div className="bg-ocean relative mx-auto max-w-3xl overflow-hidden rounded-[2rem] border border-[#e3b23c]/40 px-6 py-12 text-center text-white sm:px-14">
+            <div className="bg-grid absolute inset-0 text-white opacity-20" />
+            <div className="relative">
+              <p className="text-xs tracking-[0.3em] text-[#f6dd9b] uppercase">{c.eyebrow || "Inaugurated"}</p>
+              <h2 className="mt-4 font-heading text-2xl font-extrabold sm:text-3xl">{section.title || labName}</h2>
+              <div className="mx-auto my-6 h-px w-24 bg-gradient-to-r from-transparent via-[#e3b23c] to-transparent" />
+              {guestName && (
+                <p className="text-sm text-white/80">
+                  Inaugurated by <span className="font-semibold text-[#f6dd9b]">{guestName}</span>
+                  {guestTitle ? `, ${guestTitle}` : ""}
+                </p>
+              )}
+              {date && <p className="mt-2 text-sm text-white/60">{date}</p>}
+              <Link
+                href="/inauguration"
+                className="mt-7 inline-flex items-center gap-2 rounded-full border border-white/25 px-6 py-3 text-sm font-semibold transition hover:bg-white/10"
+              >
+                View the ceremony <ArrowRight className="size-4" />
+              </Link>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 export function CustomSection({ section }: { section: HomeSection }) {
   const c = content(section);
   return (

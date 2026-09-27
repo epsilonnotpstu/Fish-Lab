@@ -13,6 +13,7 @@ import {
   MessagesSquare,
   Save,
   ShieldAlert,
+  Smartphone,
   UserRoundCheck,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -180,7 +181,7 @@ export function MemberPortal({
       <StatusBanner member={member} />
 
       {approved && (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Link href="/account/attendance" className="group flex items-center gap-3 rounded-3xl border bg-card p-5 transition hover:border-brand-accent/50 hover:shadow-md">
             <span className="grid size-11 place-items-center rounded-2xl bg-accent text-accent-foreground"><CalendarCheck className="size-5" /></span>
             <span>
@@ -193,6 +194,13 @@ export function MemberPortal({
             <span>
               <span className="block font-semibold">Lab group</span>
               <span className="block text-xs text-muted-foreground">Chat with the lab</span>
+            </span>
+          </Link>
+          <Link href="/app" className="group flex items-center gap-3 rounded-3xl border bg-card p-5 transition hover:border-brand-accent/50 hover:shadow-md">
+            <span className="grid size-11 place-items-center rounded-2xl bg-accent text-accent-foreground"><Smartphone className="size-5" /></span>
+            <span>
+              <span className="block font-semibold">Android app</span>
+              <span className="block text-xs text-muted-foreground">Install on your phone</span>
             </span>
           </Link>
           <Link href="/account/notices" className="group flex items-center gap-3 rounded-3xl border bg-card p-5 transition hover:border-brand-accent/50 hover:shadow-md">

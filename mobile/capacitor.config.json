@@ -3,7 +3,7 @@
   "appName": "AA Lab",
   "webDir": "www",
   "server": {
-    "url": "https://aalabfst.org/account",
+    "url": "https://aalabfst.org/launch",
     "hostname": "aalabfst.org",
     "androidScheme": "https",
     "allowNavigation": [

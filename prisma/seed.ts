@@ -140,6 +140,18 @@ async function seedContent() {
         "Training request",
         "Other",
       ],
+      // Inauguration ceremony
+      inaugurationEnabled: false,
+      inaugurationKey: "",
+      ceremonyTitle: "Inauguration of the laboratory website",
+      ceremonySubtitle: "Advanced Analytical Lab — Department of Fisheries Technology, PSTU",
+      ceremonyGuestName: "Prof. Dr. S. M. Hemayet Jahan",
+      ceremonyGuestTitle: "Honorable Vice-Chancellor, Patuakhali Science and Technology University",
+      ceremonyDate: "",
+      ceremonyButtonLabel: "Inaugurate the website",
+      ceremonyNote: "Press the button to cut the ribbon and open the website.",
+      showInaugurationPlaque: true,
+
       attendanceRadiusMeters: 250,
       attendanceRequiresFence: true,
       memberSignupEnabled: true,
@@ -575,6 +587,12 @@ async function seedContent() {
       content: { eyebrow: "People", limit: 4, memberGroup: "project-team", primaryLabel: "All members", primaryHref: "/members" },
     },
     { type: "partners", title: "Supported by", subtitle: "", content: { eyebrow: "Partners" } },
+    {
+      type: "inauguration",
+      title: "Advanced Analytical Lab website",
+      subtitle: "",
+      content: { eyebrow: "Inaugurated" },
+    },
     {
       type: "cta",
       title: "Work with the Advanced Analytical Lab",

@@ -9,6 +9,7 @@ import {
   requestLoginCode,
   restartMemberAuth,
   verifyMemberCode,
+  verifyStaffCode,
   type MemberAuthState,
 } from "@/actions/member-auth";
 import { OtpInput } from "./otp-input";
@@ -53,6 +54,7 @@ export function MemberLoginForm({
   const [pwState, pwAction, pwPending] = useActionState<MemberAuthState, FormData>(loginWithPassword, undefined);
   const [codeState, codeAction, codePending] = useActionState<MemberAuthState, FormData>(requestLoginCode, undefined);
   const [verifyState, verifyAction, verifying] = useActionState<MemberAuthState, FormData>(verifyMemberCode, undefined);
+  const [staffState, staffAction, staffVerifying] = useActionState<MemberAuthState, FormData>(verifyStaffCode, undefined);
   const [reset, setReset] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(CODE_TTL_SECONDS);
   const [cooldown, setCooldown] = useState(false);
@@ -74,6 +76,32 @@ export function MemberLoginForm({
     const id = setInterval(() => setSecondsLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
     return () => clearInterval(id);
   }, [otpStep]);
+
+  // Staff accounts with the emailed second step finish here.
+  if (pwState?.step === "otp" && pwState.purpose === "staff") {
+    return (
+      <div className="space-y-6">
+        <div className="flex gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-300">
+          <CheckCircle2 className="size-5 shrink-0" />
+          <div>
+            <p className="font-semibold">Verification code sent to {pwState.email}</p>
+            <p className="mt-1 text-emerald-800/80 dark:text-emerald-300/80">
+              Enter the 6-digit code to finish signing in.
+            </p>
+          </div>
+        </div>
+        <form action={staffAction} className="space-y-5">
+          <OtpInput name="code" autoFocus />
+          {staffState?.error && (
+            <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{staffState.error}</p>
+          )}
+          <button disabled={staffVerifying} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60">
+            {staffVerifying ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />} Verify &amp; sign in
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   if (otpStep && codeState?.email) {
     return (
@@ -190,8 +218,14 @@ export function MemberLoginForm({
       )}
 
       <p className="rounded-2xl bg-muted/60 px-4 py-3 text-center text-xs text-muted-foreground">
-        Admins and editors sign in at{" "}
-        <Link href="/admin/login" className="font-medium text-foreground hover:underline">/admin</Link> with their own password.
+        Members and administrators both sign in here with their email and password.
+        {!inApp && (
+          <>
+            {" "}
+            Admins can also use{" "}
+            <Link href="/admin/login" className="font-medium text-foreground hover:underline">/admin</Link>.
+          </>
+        )}
       </p>
       <p className="text-center text-sm text-muted-foreground">
         New lab member? <Link href="/account/signup" className="font-medium text-foreground hover:underline">Create an account</Link>

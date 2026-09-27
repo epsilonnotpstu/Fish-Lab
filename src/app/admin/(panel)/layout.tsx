@@ -40,6 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         { href: "/admin/approvals", label: "Approvals", icon: "UserRoundCheck", badge: pending },
         { href: "/admin/chat", label: "Lab group", icon: "MessagesSquare" },
         { href: "/admin/attendance", label: "Attendance", icon: "CalendarCheck" },
+        { href: "/admin/inauguration", label: "Inauguration", icon: "PartyPopper" },
       ],
     },
     { label: "Content", items: byGroup("Content") },

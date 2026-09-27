@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
+  adminTwoFactorEnabled,
   audit,
   createSession,
   destroySession,
@@ -29,7 +30,7 @@ export type MemberAuthState =
       step?: "email" | "otp";
       email?: string;
       error?: string;
-      purpose?: "signup" | "login";
+      purpose?: "signup" | "login" | "staff";
       /** Set every time a code is sent, so the UI can confirm each send. */
       sentAt?: string;
     }
@@ -172,6 +173,12 @@ export async function requestLoginCode(_prev: MemberAuthState, formData: FormDat
 
 const GENERIC_LOGIN_ERROR = "Invalid email or password.";
 
+/**
+ * One password form for everybody. Staff and members follow their own rules —
+ * staff get the lockout, the optional emailed second step and an audit entry,
+ * members go straight to the portal — but the reply looks the same either way,
+ * so the form never reveals which addresses belong to staff.
+ */
 export async function loginWithPassword(_prev: MemberAuthState, formData: FormData): Promise<MemberAuthState> {
   const parsed = z
     .object({ email: emailSchema, password: z.string().min(1).max(128) })
@@ -182,36 +189,78 @@ export async function loginWithPassword(_prev: MemberAuthState, formData: FormDa
   if (!parsed.success) return { step: "email", error: GENERIC_LOGIN_ERROR };
 
   const ip = await clientIpHash();
-  if (!(await rateLimit(`member-login:${ip}`, 20, 15 * 60 * 1000))) {
+  if (!(await rateLimit(`password-login:${ip}`, 20, 15 * 60 * 1000))) {
     return { step: "email", error: "Too many attempts. Please wait a few minutes and try again." };
   }
 
   const user = await db.user.findUnique({ where: { email: parsed.data.email } });
-  if (!user || !user.active || user.role !== "MEMBER" || !user.passwordHash) {
+  if (!user || !user.active || !user.passwordHash) {
+    // Always spend the same time, so a missing account is indistinguishable.
     await verifyPassword(parsed.data.password, "$2b$12$.DF0FLcm4qFWhwa8k/GOlOzTBYVV1eDH6cjO2NCOGiwCr24uyILYS");
     return { step: "email", error: GENERIC_LOGIN_ERROR };
   }
   if (user.lockedUntil && user.lockedUntil > new Date()) {
     return { step: "email", error: "This account is temporarily locked after repeated failed sign-ins. Try again later." };
   }
+
   if (!(await verifyPassword(parsed.data.password, user.passwordHash))) {
     const failed = user.failedAttempts + 1;
+    const locked = failed >= MAX_FAILED_LOGINS;
     await db.user.update({
       where: { id: user.id },
       data: {
-        failedAttempts: failed >= MAX_FAILED_LOGINS ? 0 : failed,
-        lockedUntil: failed >= MAX_FAILED_LOGINS ? new Date(Date.now() + LOCKOUT_MS) : null,
+        failedAttempts: locked ? 0 : failed,
+        lockedUntil: locked ? new Date(Date.now() + LOCKOUT_MS) : null,
       },
     });
+    if (locked && isStaff(user.role)) await audit(user.id, "locked", "User", user.id, "Too many failed logins");
     return { step: "email", error: GENERIC_LOGIN_ERROR };
   }
 
-  await db.user.update({
-    where: { id: user.id },
-    data: { failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
-  });
+  await db.user.update({ where: { id: user.id }, data: { failedAttempts: 0, lockedUntil: null } });
+
+  if (isStaff(user.role)) {
+    if (adminTwoFactorEnabled()) {
+      try {
+        await startChallenge({ email: user.email, purpose: "admin-2fa", userId: user.id });
+      } catch {
+        return { step: "email", error: "Could not send the verification email. Please try again." };
+      }
+      return { step: "otp", purpose: "staff", email: maskEmail(user.email), sentAt: new Date().toISOString() };
+    }
+    await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await db.session.deleteMany({ where: { userId: user.id, expiresAt: { lt: new Date() } } });
+    await createSession(user.id);
+    await audit(user.id, "login", "User", user.id);
+    redirect(user.mustChangePassword ? "/admin/account?first=1" : "/admin");
+  }
+
+  await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
   await createSession(user.id);
   redirect("/account");
+}
+
+/** Second step of a staff sign-in started from the shared login form. */
+export async function verifyStaffCode(_prev: MemberAuthState, formData: FormData): Promise<MemberAuthState> {
+  const ip = await clientIpHash();
+  if (!(await rateLimit(`otp-verify:${ip}`, 20, 15 * 60 * 1000))) {
+    return { step: "otp", purpose: "staff", error: "Too many attempts. Please wait and try again." };
+  }
+  const result = await verifyChallenge("admin-2fa", String(formData.get("code") ?? "").slice(0, 12));
+  if (!result.ok) return { step: "otp", purpose: "staff", error: result.error };
+
+  const user = result.challenge.userId ? await db.user.findUnique({ where: { id: result.challenge.userId } }) : null;
+  if (!user || !user.active || !isStaff(user.role)) return { step: "email", error: GENERIC_LOGIN_ERROR };
+
+  await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  await createSession(user.id);
+  await audit(user.id, "login", "User", user.id);
+  redirect(user.mustChangePassword ? "/admin/account?first=1" : "/admin");
+}
+
+function maskEmail(email: string) {
+  const [local, domain] = email.split("@");
+  return `${local.slice(0, 2)}${"•".repeat(Math.max(1, local.length - 2))}@${domain}`;
 }
 
 export async function verifyMemberCode(prev: MemberAuthState, formData: FormData): Promise<MemberAuthState> {

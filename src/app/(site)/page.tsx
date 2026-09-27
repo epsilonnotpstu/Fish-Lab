@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { getSettings } from "@/lib/settings";
 import { asArray } from "@/lib/settings";
 import { Hero, type HeroSlide } from "@/components/site/home/hero";
 import { Stats } from "@/components/site/home/stats";
@@ -10,6 +11,7 @@ import {
   CustomSection,
   MembersSection,
   NewsSection,
+  InaugurationSection,
   NoticesSection,
   PartnersSection,
   primaryAction,
@@ -32,7 +34,10 @@ async function liveCounts() {
 }
 
 export default async function HomePage() {
-  const sections = await db.homeSection.findMany({ where: { visible: true }, orderBy: { order: "asc" } });
+  const [sections, settings] = await Promise.all([
+    db.homeSection.findMany({ where: { visible: true }, orderBy: { order: "asc" } }),
+    getSettings(),
+  ]);
   const has = (t: string) => sections.some((s) => s.type === t);
   const limitOf = (t: string, fallback: number) => {
     const s = sections.find((x) => x.type === t);
@@ -113,6 +118,17 @@ export default async function HomePage() {
             break;
           case "partners":
             node = <PartnersSection section={section} partners={partners} />;
+            break;
+          case "inauguration":
+            node = settings.showInaugurationPlaque && settings.inauguratedAt ? (
+              <InaugurationSection
+                section={section}
+                guestName={settings.ceremonyGuestName}
+                guestTitle={settings.ceremonyGuestTitle}
+                date={settings.ceremonyDate}
+                labName={settings.labName}
+              />
+            ) : null;
             break;
           case "cta":
             node = <CtaSection section={section} />;

@@ -66,6 +66,19 @@ model SiteSettings {
   contactIntro       String  @default("")
   inquiryTypes       Json    @default("[]") // ["Lab visit", "Collaboration", ...]
 
+  // Inauguration ceremony
+  inaugurationEnabled    Boolean   @default(false)
+  inauguratedAt          DateTime?
+  inaugurationKey        String    @default("")
+  ceremonyTitle          String    @default("")
+  ceremonySubtitle       String    @default("")
+  ceremonyGuestName      String    @default("")
+  ceremonyGuestTitle     String    @default("")
+  ceremonyDate           String    @default("")
+  ceremonyButtonLabel    String    @default("Inaugurate")
+  ceremonyNote           String    @default("")
+  showInaugurationPlaque Boolean   @default(true)
+
   // Member area
   labLat                  String  @default("")
   labLng                  String  @default("")
@@ -445,7 +458,9 @@ model OtpChallenge {
   purpose    String // signup | login | admin-2fa
   codeHash   String
   name       String    @default("")
-  /** Pending sign-up application (already validated, password pre-hashed). */
+  /**
+   * Pending sign-up application (already validated, password pre-hashed).
+   */
   payload    Json      @default("{}")
   userId     String?
   attempts   Int       @default(0)

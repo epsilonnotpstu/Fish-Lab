@@ -2,10 +2,27 @@ import { Header, type NavLink } from "@/components/site/header";
 import { Footer } from "@/components/site/footer";
 import { AnnouncementBar } from "@/components/site/announcement-bar";
 import { db } from "@/lib/db";
+import { headers } from "next/headers";
+import { ceremonyArmed, ceremonyPending } from "@/lib/inauguration";
+import { CeremonyGate } from "@/components/site/ceremony/ceremony-gate";
 import { getNavigation, getSettings } from "@/lib/settings";
 import { isSafeHref } from "@/lib/format";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
+  // Before the inauguration the public pages are replaced by the ceremony. The
+  // chief guest (and staff) get the real site behind the curtain, so opening it
+  // reveals the website itself; everyone else only gets the waiting screen.
+  const pending = await ceremonyPending();
+  let armedForCeremony = false;
+  if (pending) {
+    const [settings, search] = await Promise.all([
+      getSettings(),
+      headers().then((h) => h.get("x-search") ?? ""),
+    ]);
+    armedForCeremony = await ceremonyArmed(settings, new URLSearchParams(search).get("key") ?? "");
+    if (!armedForCeremony) return <CeremonyGate armed={false} />;
+  }
+
   const [settings, navRows, firstSection] = await Promise.all([
     getSettings(),
     getNavigation(),
@@ -64,6 +81,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         {children}
       </main>
       <Footer settings={settings} nav={flatNav} />
+      {pending && <CeremonyGate armed={armedForCeremony} />}
       <script
         type="application/ld+json"
         // JSON.stringify output with "<" escaped cannot break out of the script tag.
