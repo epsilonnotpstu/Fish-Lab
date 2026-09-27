@@ -10,7 +10,17 @@ The seed data is a fictional fisheries laboratory. Replace it from the admin pan
 
 **Admin (`/admin`):** dashboard, messages inbox, create/edit/delete for every collection, drag-and-drop ordering, rich-text editor, Cloudinary drag-and-drop uploads, site settings (branding colours and fonts, contact, footer, SEO, announcement bar, feature toggles), users and roles, and an activity log.
 
-**Member portal (`/account`):** lab members sign up and sign in with a 6-digit code sent to their email (no password). Once their account is linked to a member profile they can edit their own photo, bio, interests, education and links.
+**Member portal (`/account`):** members sign up with their academic and contact details, verify their email with a 6-digit code and wait for an administrator to approve them. After that they can sign in with a password, a one-time code or Google, edit their profile, mark attendance, read notices and use the lab group chat.
+
+**Lab group chat:** one shared group for members and staff with live updates, replies, image previews, files, voice notes and moderation (members delete their own messages, staff any message).
+
+**Attendance:** a single Present button and a Check out button; the member's location is recorded and checked against the lab. Staff get a daily register, a monthly summary and a CSV export.
+
+**Notices:** published from the admin panel to the landing page, the `/notices` page and the member portal.
+
+**Inauguration ceremony:** turn on ceremony mode and the public site is replaced by an invitation screen. The chief guest's private link arms the button; pressing it cuts a gold ribbon, opens the curtains over the real site and leaves a commemorative plaque. `/inauguration` replays it afterwards.
+
+**Android app:** a Capacitor shell around the member portal (`mobile/`), published as a GitHub release and offered at `/app` with a QR code and install instructions.
 
 ## Roles
 
@@ -18,9 +28,22 @@ The seed data is a fictional fisheries laboratory. Replace it from the admin pan
 | --- | --- |
 | Super admin | Everything, including settings, users and the activity log |
 | Editor | All content (research, news, people, pages, homepage, navigation) |
-| Member | Only their own linked profile, through the member portal |
+| Member | Their own profile, attendance, notices and the lab group |
 
 Members register themselves. A new account is linked automatically to an unclaimed member profile with the same email address. Otherwise a super admin links it under **Users & Roles**. To make someone an editor, set a password for them first, then change their role.
+
+## The Android app
+
+```bash
+cd mobile
+npm install
+npx cap sync android
+cd android && ./gradlew assembleRelease     # signed with mobile/keystore (kept out of git)
+```
+
+The app loads `https://aalabfst.org/launch`, which sends staff to the admin panel and members to the portal, so one sign-in screen serves both. Google sign-in opens the system browser (Google refuses OAuth in a web view) and returns through the `aalabapp://auth` deep link with a single-use token.
+
+To publish a new build: `gh release create vX.Y.Z app-release.apk`, then set the link and version under **Site settings → Member area**.
 
 ## Security
 
